@@ -12,7 +12,7 @@ import {
   query, 
   orderBy 
 } from "firebase/firestore";
-import { WikiArticle } from "../types";
+import { WikiArticle, School, OnboardingTask } from "../types";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -30,13 +30,13 @@ const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 const db = getFirestore(app);
 
+// --- Collections ---
+const WIKI_COLLECTION = "wiki_articles";
+const SCHOOLS_COLLECTION = "schools";
+const ONBOARDING_COLLECTION = "onboarding_tasks";
+
 // --- Wiki Services ---
 
-const WIKI_COLLECTION = "wiki_articles";
-
-/**
- * Fetch all wiki articles from Firestore
- */
 export const getWikiArticles = async (): Promise<WikiArticle[]> => {
   try {
     const q = query(collection(db, WIKI_COLLECTION), orderBy("lastModified", "desc"));
@@ -51,9 +51,6 @@ export const getWikiArticles = async (): Promise<WikiArticle[]> => {
   }
 };
 
-/**
- * Add a new wiki article
- */
 export const addWikiArticle = async (article: Omit<WikiArticle, 'id'>): Promise<string> => {
   try {
     const docRef = await addDoc(collection(db, WIKI_COLLECTION), article);
@@ -64,13 +61,9 @@ export const addWikiArticle = async (article: Omit<WikiArticle, 'id'>): Promise<
   }
 };
 
-/**
- * Update an existing wiki article
- */
 export const updateWikiArticle = async (id: string, updates: Partial<WikiArticle>): Promise<void> => {
   try {
     const docRef = doc(db, WIKI_COLLECTION, id);
-    // Remove id from updates if it exists to avoid overwriting document key
     const { id: _, ...dataToUpdate } = updates;
     await updateDoc(docRef, dataToUpdate);
   } catch (error) {
@@ -79,14 +72,105 @@ export const updateWikiArticle = async (id: string, updates: Partial<WikiArticle
   }
 };
 
-/**
- * Delete a wiki article
- */
 export const deleteWikiArticle = async (id: string): Promise<void> => {
   try {
     await deleteDoc(doc(db, WIKI_COLLECTION, id));
   } catch (error) {
     console.error("Error deleting wiki article:", error);
+    throw error;
+  }
+};
+
+// --- School Services ---
+
+export const getSchools = async (): Promise<School[]> => {
+  try {
+    // Order schools by updatedAt descending
+    const q = query(collection(db, SCHOOLS_COLLECTION), orderBy("updatedAt", "desc"));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as School));
+  } catch (error) {
+    console.error("Error fetching schools:", error);
+    return [];
+  }
+};
+
+export const addSchool = async (school: Omit<School, 'id'>): Promise<string> => {
+  try {
+    const docRef = await addDoc(collection(db, SCHOOLS_COLLECTION), school);
+    return docRef.id;
+  } catch (error) {
+    console.error("Error adding school:", error);
+    throw error;
+  }
+};
+
+export const updateSchool = async (id: string, updates: Partial<School>): Promise<void> => {
+  try {
+    const docRef = doc(db, SCHOOLS_COLLECTION, id);
+    const { id: _, ...dataToUpdate } = updates;
+    await updateDoc(docRef, dataToUpdate);
+  } catch (error) {
+    console.error("Error updating school:", error);
+    throw error;
+  }
+};
+
+export const deleteSchool = async (id: string): Promise<void> => {
+  try {
+    await deleteDoc(doc(db, SCHOOLS_COLLECTION, id));
+  } catch (error) {
+    console.error("Error deleting school:", error);
+    throw error;
+  }
+};
+
+// --- Onboarding Services ---
+
+export const getOnboardingTasks = async (): Promise<OnboardingTask[]> => {
+  try {
+    // Order by day ascending
+    const q = query(collection(db, ONBOARDING_COLLECTION), orderBy("day", "asc"));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as OnboardingTask));
+  } catch (error) {
+    console.error("Error fetching onboarding tasks:", error);
+    return [];
+  }
+};
+
+export const addOnboardingTask = async (task: Omit<OnboardingTask, 'id'>): Promise<string> => {
+  try {
+    const docRef = await addDoc(collection(db, ONBOARDING_COLLECTION), task);
+    return docRef.id;
+  } catch (error) {
+    console.error("Error adding onboarding task:", error);
+    throw error;
+  }
+};
+
+export const updateOnboardingTask = async (id: string, updates: Partial<OnboardingTask>): Promise<void> => {
+  try {
+    const docRef = doc(db, ONBOARDING_COLLECTION, id);
+    const { id: _, ...dataToUpdate } = updates;
+    await updateDoc(docRef, dataToUpdate);
+  } catch (error) {
+    console.error("Error updating onboarding task:", error);
+    throw error;
+  }
+};
+
+export const deleteOnboardingTask = async (id: string): Promise<void> => {
+  try {
+    await deleteDoc(doc(db, ONBOARDING_COLLECTION, id));
+  } catch (error) {
+    console.error("Error deleting onboarding task:", error);
     throw error;
   }
 };

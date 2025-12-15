@@ -8,21 +8,36 @@ import SchoolDatabase from './components/SchoolDatabase';
 import Wiki from './components/Wiki';
 import AIAssistant from './components/AIAssistant';
 import Onboarding from './components/Onboarding';
-import { getWikiArticles } from './services/firebase';
+import { getWikiArticles, getSchools, getOnboardingTasks } from './services/firebase';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>(View.DASHBOARD);
   
   // Lifted state to share data between components
-  const [schools, setSchools] = useState<School[]>(INITIAL_SCHOOLS);
-  const [wikiArticles, setWikiArticles] = useState<WikiArticle[]>([]); // Start empty, load from DB
-  const [onboardingTasks, setOnboardingTasks] = useState<OnboardingTask[]>(INITIAL_ONBOARDING_DATA);
+  const [schools, setSchools] = useState<School[]>([]);
+  const [wikiArticles, setWikiArticles] = useState<WikiArticle[]>([]); 
+  const [onboardingTasks, setOnboardingTasks] = useState<OnboardingTask[]>([]);
 
-  // Load Wiki Data from Firebase
+  // Load All Data from Firebase
   useEffect(() => {
     const loadData = async () => {
-      const data = await getWikiArticles();
-      setWikiArticles(data);
+      try {
+        const [wikiData, schoolData, taskData] = await Promise.all([
+          getWikiArticles(),
+          getSchools(),
+          getOnboardingTasks()
+        ]);
+
+        setWikiArticles(wikiData);
+        
+        // Use Firebase data if available, otherwise fallback to constants (or empty)
+        // This logic ensures if DB is empty (first run), we might see empty lists, 
+        // but typically you'd run a migration script. For now, we prefer DB truth.
+        setSchools(schoolData.length > 0 ? schoolData : []);
+        setOnboardingTasks(taskData.length > 0 ? taskData : []);
+      } catch (e) {
+        console.error("Failed to load data", e);
+      }
     };
     loadData();
   }, []);

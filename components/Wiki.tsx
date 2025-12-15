@@ -92,9 +92,9 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
       if (isCreating) {
         // Prepare data without ID for Firebase
         const newArticleData = {
-          title: editForm.title,
+          title: editForm.title!,
           category: editForm.category || WikiCategory.PROCESS,
-          content: editForm.content,
+          content: editForm.content!,
           tags: tagsArray,
           lastModified: timestamp
         };
@@ -113,9 +113,9 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
       } else if (selectedArticle && editForm.id) {
         // Updating
         const updates = {
-          title: editForm.title,
-          category: editForm.category,
-          content: editForm.content,
+          title: editForm.title!,
+          category: editForm.category || selectedArticle.category,
+          content: editForm.content!,
           tags: tagsArray,
           lastModified: timestamp
         };
@@ -436,3 +436,4 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
 };
 
 export default Wiki;
+    

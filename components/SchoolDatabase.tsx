@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { School } from '../types';
 import { Search, Filter, Upload, MapPin, DollarSign, Book, Loader2, School as SchoolIcon, Plus, X, Trash2, Edit2, Save, GraduationCap, CheckCircle, ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
 import { parseSchoolDocument } from '../services/geminiService';
+import { addSchool, updateSchool, deleteSchool } from '../services/firebase';
 
 interface SchoolDatabaseProps {
   schools: School[];
@@ -21,6 +22,7 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
   const [scoreFilterValue, setScoreFilterValue] = useState('');
 
   const [isUploading, setIsUploading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -86,8 +88,7 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
     try {
       const newSchoolData = await parseSchoolDocument(file.name, mockContent);
       
-      const newSchool: School = {
-        id: Date.now().toString(),
+      const newSchoolPayload: Omit<School, 'id'> = {
         name: newSchoolData.name || 'Unknown School',
         location: newSchoolData.location || 'Unknown Location',
         country: newSchoolData.country || 'USA',
@@ -96,12 +97,23 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
         tuitionRange: newSchoolData.tuitionRange || 'TBD',
         requirements: newSchoolData.requirements || {},
         tags: newSchoolData.tags || [],
-        updatedAt: new Date().toISOString().split('T')[0]
+        updatedAt: new Date().toISOString().split('T')[0],
+        description: newSchoolData.description || '',
+        isPartner: false
+      };
+
+      // Save to Firebase
+      const newId = await addSchool(newSchoolPayload);
+
+      const newSchool: School = {
+        id: newId,
+        ...newSchoolPayload
       };
 
       setSchools(prev => [newSchool, ...prev]);
       alert(`成功匯入院校資料: ${newSchool.name}`);
     } catch (e) {
+      console.error(e);
       alert("匯入失敗，請確認檔案格式或稍後再試。");
     } finally {
       setIsUploading(false);
@@ -137,47 +149,73 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
     setModalMode('EDIT');
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!currentSchool) return;
-    // Direct delete, no confirmation
+    
+    // Optimistic Update
+    const prevSchools = [...schools];
     setSchools(prev => prev.filter(s => s.id !== currentSchool!.id));
     setIsModalOpen(false);
+
+    try {
+      await deleteSchool(currentSchool.id);
+    } catch (e) {
+      console.error(e);
+      setSchools(prevSchools);
+      alert("刪除失敗");
+    }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!editForm.name) {
       alert("學校名稱為必填");
       return;
     }
 
-    if (modalMode === 'ADD') {
-      const newSchool: School = {
-        id: Date.now().toString(),
-        name: editForm.name!,
-        location: editForm.location || '',
-        country: editForm.country || '',
-        type: editForm.type as any || 'University',
-        programs: typeof editForm.programs === 'string' ? (editForm.programs as string).split(',').map((s: string) => s.trim()) : (editForm.programs || []),
-        tuitionRange: editForm.tuitionRange || '',
-        requirements: editForm.requirements || {},
-        tags: typeof editForm.tags === 'string' ? (editForm.tags as string).split(',').map((s: string) => s.trim()) : (editForm.tags || []),
-        description: editForm.description || '',
-        isPartner: editForm.isPartner || false,
-        updatedAt: new Date().toISOString().split('T')[0]
-      };
-      setSchools(prev => [newSchool, ...prev]);
-    } else if (modalMode === 'EDIT' && currentSchool) {
-      setSchools(prev => prev.map(s => s.id === currentSchool.id ? {
-        ...s,
-        ...editForm,
-        // Ensure arrays are handled if input was comma-separated string
-        programs: Array.isArray(editForm.programs) ? editForm.programs : (editForm.programs as unknown as string).split(',').map((s: string) => s.trim()),
-        tags: Array.isArray(editForm.tags) ? editForm.tags : (editForm.tags as unknown as string).split(',').map((s: string) => s.trim()),
-        updatedAt: new Date().toISOString().split('T')[0]
-      } as School : s));
-    }
+    setIsSaving(true);
+    const today = new Date().toISOString().split('T')[0];
 
-    setIsModalOpen(false);
+    try {
+      if (modalMode === 'ADD') {
+        const newSchoolData: Omit<School, 'id'> = {
+          name: editForm.name!,
+          location: editForm.location || '',
+          country: editForm.country || '',
+          type: editForm.type as any || 'University',
+          programs: typeof editForm.programs === 'string' ? (editForm.programs as string).split(',').map((s: string) => s.trim()) : (editForm.programs || []),
+          tuitionRange: editForm.tuitionRange || '',
+          requirements: editForm.requirements || {},
+          tags: typeof editForm.tags === 'string' ? (editForm.tags as string).split(',').map((s: string) => s.trim()) : (editForm.tags || []),
+          description: editForm.description || '',
+          isPartner: editForm.isPartner || false,
+          updatedAt: today
+        };
+        
+        const newId = await addSchool(newSchoolData);
+        
+        setSchools(prev => [{ id: newId, ...newSchoolData }, ...prev]);
+        
+      } else if (modalMode === 'EDIT' && currentSchool) {
+        
+        const updates: Partial<School> = {
+          ...editForm,
+          programs: Array.isArray(editForm.programs) ? editForm.programs : (editForm.programs as unknown as string).split(',').map((s: string) => s.trim()),
+          tags: Array.isArray(editForm.tags) ? editForm.tags : (editForm.tags as unknown as string).split(',').map((s: string) => s.trim()),
+          updatedAt: today
+        };
+
+        await updateSchool(currentSchool.id, updates);
+
+        setSchools(prev => prev.map(s => s.id === currentSchool.id ? { ...s, ...updates } as School : s));
+      }
+
+      setIsModalOpen(false);
+    } catch (e) {
+      console.error(e);
+      alert("儲存失敗，請檢查網路連線。");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // --- Render Helpers ---
@@ -635,15 +673,17 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
                 <button 
                   onClick={() => setIsModalOpen(false)}
                   className="px-5 py-2 text-gray-600 font-medium hover:bg-gray-200 rounded-lg transition-colors"
+                  disabled={isSaving}
                 >
                   取消
                 </button>
                 <button 
                   onClick={handleSave}
                   className="px-5 py-2 bg-[#FF4B7D] text-white font-medium rounded-lg hover:bg-[#E63E6D] transition-colors flex items-center gap-2"
+                  disabled={isSaving}
                 >
-                  <Save size={18} />
-                  儲存
+                  {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                  {isSaving ? '儲存中...' : '儲存'}
                 </button>
               </div>
             )}

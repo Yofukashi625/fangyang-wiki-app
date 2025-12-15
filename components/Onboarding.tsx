@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
 import { OnboardingTask } from '../types';
-import { Plus, Edit2, Trash2, Calendar, Save, X, BookOpen, CheckSquare, Eye } from 'lucide-react';
+import { Plus, Edit2, Trash2, Calendar, Save, X, CheckSquare, Eye, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { addOnboardingTask, updateOnboardingTask, deleteOnboardingTask } from '../services/firebase';
 
 interface OnboardingProps {
   tasks: OnboardingTask[];
@@ -13,6 +14,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ tasks, setTasks }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'VIEW' | 'EDIT' | 'ADD'>('VIEW');
   const [editForm, setEditForm] = useState<Partial<OnboardingTask>>({});
+  const [isSaving, setIsSaving] = useState(false);
 
   // Generate fixed slots for Day 1 to Day 10
   const days = Array.from({ length: 10 }, (_, i) => i + 1);
@@ -39,30 +41,61 @@ const Onboarding: React.FC<OnboardingProps> = ({ tasks, setTasks }) => {
     setModalMode('EDIT');
   };
 
-  const handleDelete = (id: string, e: React.MouseEvent) => {
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    // Direct delete, no confirmation
+    
+    // Optimistic Update
+    const prevTasks = [...tasks];
     setTasks(prev => prev.filter(t => t.id !== id));
+
+    try {
+      await deleteOnboardingTask(id);
+    } catch (e) {
+      console.error(e);
+      setTasks(prevTasks);
+      alert("刪除失敗");
+    }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!editForm.title || !editForm.day) {
       alert("請填寫完整資訊");
       return;
     }
 
-    if (modalMode === 'EDIT') {
-      setTasks(prev => prev.map(t => t.id === editForm.id ? { ...t, ...editForm } as OnboardingTask : t));
-    } else {
-      const newTask: OnboardingTask = {
-        id: 'ob-' + Date.now(),
-        day: editForm.day,
-        title: editForm.title,
-        description: editForm.description || '',
-      };
-      setTasks(prev => [...prev, newTask]);
+    setIsSaving(true);
+
+    try {
+      if (modalMode === 'EDIT' && editForm.id) {
+        // Update
+        const updates: Partial<OnboardingTask> = {
+          day: editForm.day,
+          title: editForm.title,
+          description: editForm.description || ''
+        };
+        
+        await updateOnboardingTask(editForm.id, updates);
+        
+        setTasks(prev => prev.map(t => t.id === editForm.id ? { ...t, ...updates } as OnboardingTask : t));
+      } else {
+        // Create
+        const newTaskData: Omit<OnboardingTask, 'id'> = {
+          day: editForm.day,
+          title: editForm.title,
+          description: editForm.description || '',
+        };
+
+        const newId = await addOnboardingTask(newTaskData);
+        
+        setTasks(prev => [...prev, { id: newId, ...newTaskData }]);
+      }
+      setIsModalOpen(false);
+    } catch (e) {
+      console.error(e);
+      alert("儲存失敗");
+    } finally {
+      setIsSaving(false);
     }
-    setIsModalOpen(false);
   };
 
   return (
@@ -209,9 +242,10 @@ const Onboarding: React.FC<OnboardingProps> = ({ tasks, setTasks }) => {
             {/* Modal Footer */}
             {modalMode !== 'VIEW' && (
               <div className="p-6 border-t border-gray-100 flex justify-end gap-3 bg-gray-50">
-                 <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg transition-colors text-sm font-medium">取消</button>
-                 <button onClick={handleSave} className="px-4 py-2 bg-[#FF4B7D] text-white hover:bg-[#E63E6D] rounded-lg transition-colors text-sm font-medium flex items-center gap-2">
-                   <Save size={16} /> 儲存
+                 <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg transition-colors text-sm font-medium" disabled={isSaving}>取消</button>
+                 <button onClick={handleSave} className="px-4 py-2 bg-[#FF4B7D] text-white hover:bg-[#E63E6D] rounded-lg transition-colors text-sm font-medium flex items-center gap-2" disabled={isSaving}>
+                   {isSaving ? <Loader2 size={16} className="animate-spin"/> : <Save size={16} />}
+                   {isSaving ? '儲存中...' : '儲存'}
                  </button>
               </div>
             )}
