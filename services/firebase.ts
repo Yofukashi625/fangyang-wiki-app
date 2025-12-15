@@ -3,13 +3,13 @@ import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCv6OCG6H2xh-28p2ozVv0Zen2_SgW9hAY",
-  authDomain: "fangyang-hub-9dc7c.firebaseapp.com",
-  projectId: "fangyang-hub-9dc7c",
-  storageBucket: "fangyang-hub-9dc7c.firebasestorage.app",
-  messagingSenderId: "508243052118",
-  appId: "1:508243052118:web:a4d4df87711d9901229df7",
-  measurementId: "G-2EPQXZRJV9"
+  apiKey: "AIzaSyDa0eFiglnaTsJAOsOV7Z16EU60XIAI_l0",
+  authDomain: "fangyang-hub-f694a.firebaseapp.com",
+  projectId: "fangyang-hub-f694a",
+  storageBucket: "fangyang-hub-f694a.firebasestorage.app",
+  messagingSenderId: "792043442444",
+  appId: "1:792043442444:web:ad378645b28c5f49f53929",
+  measurementId: "G-VD6PJDDEHM"
 };
 
 // Initialize Firebase
