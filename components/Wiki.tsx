@@ -2,8 +2,9 @@
 import React, { useState, useRef } from 'react';
 import { WikiArticle, WikiCategory } from '../types';
 import { CATEGORY_LABELS } from '../constants';
-import { Search, ChevronRight, FileText, Plus, Edit3, Trash2, ArrowLeft, Save, Bold, Italic, List, Heading1, Heading2, Link, Underline as UnderlineIcon, ListOrdered } from 'lucide-react';
+import { Search, ChevronRight, FileText, Plus, Edit3, Trash2, ArrowLeft, Save, Bold, Italic, List, Heading1, Heading2, Link, Underline as UnderlineIcon, ListOrdered, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { addWikiArticle, updateWikiArticle, deleteWikiArticle } from '../services/firebase';
 
 interface WikiProps {
   articles: WikiArticle[];
@@ -18,6 +19,8 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
   // Editing / Creating State
   const [isEditing, setIsEditing] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false); // Loading state for save
+  const [isDeleting, setIsDeleting] = useState(false); // Loading state for delete
   const [editForm, setEditForm] = useState<Partial<WikiArticle>>({});
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -52,49 +55,91 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
     setIsCreating(false);
   };
 
-  const handleDelete = (articleId: string) => {
-    // Direct delete, no confirmation
-    setArticles(prev => prev.filter(a => a.id !== articleId));
-    setSelectedArticle(null);
-    setIsEditing(false);
+  const handleDelete = async (articleId: string) => {
+    console.log("Initiating delete for:", articleId);
+    if(!window.confirm("確定要刪除此條目嗎？此動作無法復原。")) return;
+
+    setIsDeleting(true);
+    try {
+      await deleteWikiArticle(articleId);
+      // Update local state
+      setArticles(prev => prev.filter(a => a.id !== articleId));
+      // Reset view
+      setSelectedArticle(null);
+      setIsEditing(false);
+    } catch (e) {
+      console.error("Delete failed:", e);
+      alert("刪除失敗，請檢查網路連線或確認您有權限執行此動作。");
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!editForm.title || !editForm.content) {
       alert("標題與內容為必填");
       return;
     }
 
+    setIsSaving(true);
+
     const tagsArray = typeof editForm.tags === 'string' 
       ? (editForm.tags as string).split(',').map((s:string) => s.trim()) 
       : (editForm.tags || []);
+    
+    const timestamp = new Date().toISOString().split('T')[0];
 
-    if (isCreating) {
-      const newArticle: WikiArticle = {
-        id: 'w' + Date.now(),
-        title: editForm.title,
-        category: editForm.category || WikiCategory.PROCESS,
-        content: editForm.content,
-        tags: tagsArray,
-        lastModified: new Date().toISOString().split('T')[0]
-      };
-      setArticles(prev => [newArticle, ...prev]);
-      // Immediately view the new article
-      setSelectedArticle(newArticle);
-    } else if (selectedArticle) {
-      // Updating
-      const updatedArticle: WikiArticle = {
-        ...selectedArticle,
-        ...editForm,
-        tags: tagsArray,
-        lastModified: new Date().toISOString().split('T')[0]
-      };
-      setArticles(prev => prev.map(a => a.id === updatedArticle.id ? updatedArticle : a));
-      setSelectedArticle(updatedArticle);
+    try {
+      if (isCreating) {
+        // Prepare data without ID for Firebase
+        const newArticleData = {
+          title: editForm.title,
+          category: editForm.category || WikiCategory.PROCESS,
+          content: editForm.content,
+          tags: tagsArray,
+          lastModified: timestamp
+        };
+
+        // Save to Firebase
+        const newId = await addWikiArticle(newArticleData);
+
+        // Update Local State
+        const newArticle: WikiArticle = {
+          id: newId,
+          ...newArticleData
+        };
+        setArticles(prev => [newArticle, ...prev]);
+        setSelectedArticle(newArticle);
+
+      } else if (selectedArticle && editForm.id) {
+        // Updating
+        const updates = {
+          title: editForm.title,
+          category: editForm.category,
+          content: editForm.content,
+          tags: tagsArray,
+          lastModified: timestamp
+        };
+
+        await updateWikiArticle(editForm.id, updates);
+
+        const updatedArticle: WikiArticle = {
+          ...selectedArticle,
+          ...updates
+        };
+        setArticles(prev => prev.map(a => a.id === updatedArticle.id ? updatedArticle : a));
+        setSelectedArticle(updatedArticle);
+      }
+
+      setIsEditing(false);
+      setIsCreating(false);
+
+    } catch (error) {
+      console.error(error);
+      alert("儲存失敗，請檢查 Firebase 設定或網路連線。");
+    } finally {
+      setIsSaving(false);
     }
-
-    setIsEditing(false);
-    setIsCreating(false);
   };
 
   // --- Markdown Toolbar Helpers ---
@@ -131,6 +176,7 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
         <button 
           onClick={() => { setIsEditing(false); setIsCreating(false); }}
           className="mb-6 text-sm text-gray-500 hover:text-[#FF4B7D] flex items-center gap-1 transition-colors"
+          disabled={isSaving}
         >
           <ArrowLeft size={16} /> 取消編輯
         </button>
@@ -138,8 +184,13 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
           <div className="p-6 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
              <h2 className="text-xl font-bold text-gray-800">{isCreating ? '新增知識庫條目' : '編輯條目'}</h2>
-             <button onClick={handleSave} className="px-4 py-2 bg-[#FF4B7D] text-white rounded-lg flex items-center gap-2 hover:bg-[#E63E6D] font-medium">
-               <Save size={18} /> 儲存
+             <button 
+               onClick={handleSave} 
+               disabled={isSaving}
+               className="px-4 py-2 bg-[#FF4B7D] text-white rounded-lg flex items-center gap-2 hover:bg-[#E63E6D] font-medium disabled:opacity-70 disabled:cursor-not-allowed"
+             >
+               {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+               {isSaving ? '儲存中...' : '儲存'}
              </button>
           </div>
           
@@ -152,6 +203,7 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
                   value={editForm.title || ''}
                   onChange={e => setEditForm({...editForm, title: e.target.value})}
                   placeholder="e.g., F-1 簽證申請指南"
+                  disabled={isSaving}
                 />
               </div>
               <div className="col-span-2 md:col-span-1">
@@ -160,6 +212,7 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
                   className="w-full p-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF4B7D] focus:outline-none placeholder-gray-400 text-gray-900"
                   value={editForm.category || WikiCategory.PROCESS}
                   onChange={e => setEditForm({...editForm, category: e.target.value as WikiCategory})}
+                  disabled={isSaving}
                 >
                   {categories.map(c => <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>)}
                 </select>
@@ -173,6 +226,7 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
                 value={Array.isArray(editForm.tags) ? editForm.tags.join(', ') : editForm.tags || ''}
                 onChange={e => setEditForm({...editForm, tags: e.target.value as any})}
                 placeholder="USA, Visa, SOP"
+                disabled={isSaving}
               />
             </div>
 
@@ -213,6 +267,7 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
                 value={editForm.content || ''}
                 onChange={e => setEditForm({...editForm, content: e.target.value})}
                 placeholder="# 請在此輸入內容... &#10;可以使用上方工具列輔助排版"
+                disabled={isSaving}
               />
             </div>
           </div>
@@ -236,15 +291,18 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
           <div className="flex gap-2">
             <button 
               onClick={() => handleStartEdit(selectedArticle)}
-              className="px-3 py-1.5 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 flex items-center gap-2 text-sm font-medium transition-colors"
+              disabled={isDeleting}
+              className="px-3 py-1.5 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 flex items-center gap-2 text-sm font-medium transition-colors disabled:opacity-50"
             >
               <Edit3 size={16} /> 編輯
             </button>
             <button 
               onClick={() => handleDelete(selectedArticle.id)}
-              className="px-3 py-1.5 border border-red-200 text-red-500 rounded-lg hover:bg-red-50 flex items-center gap-2 text-sm font-medium transition-colors"
+              disabled={isDeleting}
+              className="px-3 py-1.5 border border-red-200 text-red-500 rounded-lg hover:bg-red-50 flex items-center gap-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Trash2 size={16} /> 刪除
+              {isDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+              {isDeleting ? '刪除中...' : '刪除'}
             </button>
           </div>
         </div>
@@ -266,9 +324,6 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
           </div>
           
           <div className="p-8 prose prose-slate max-w-none text-gray-700 leading-relaxed">
-            {/* Note: ReactMarkdown by default escapes HTML. For <u> to work, we'd need rehype-raw, 
-                but without adding deps we just allow it to render as is or just in editor. 
-                For now we keep standard markdown behavior. */}
             <ReactMarkdown>{selectedArticle.content}</ReactMarkdown>
           </div>
         </div>
@@ -369,8 +424,12 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
             ) : (
               <div className="text-center py-16 bg-white rounded-xl border border-dashed border-gray-200">
                 <FileText className="mx-auto text-gray-300 mb-3" size={48} />
-                <h3 className="text-lg font-medium text-gray-900">沒有找到相關文章</h3>
-                <p className="text-gray-500 mt-1">試試調整搜尋關鍵字或分類</p>
+                <h3 className="text-lg font-medium text-gray-900">
+                  {articles.length === 0 ? "知識庫目前是空的" : "沒有找到相關文章"}
+                </h3>
+                <p className="text-gray-500 mt-1">
+                  {articles.length === 0 ? "點擊「新增條目」建立第一筆資料！" : "試試調整搜尋關鍵字或分類"}
+                </p>
               </div>
             )}
           </div>

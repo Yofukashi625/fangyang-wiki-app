@@ -1,21 +1,31 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, School, WikiArticle, OnboardingTask } from './types';
-import { INITIAL_SCHOOLS, INITIAL_WIKI_ARTICLES, INITIAL_ONBOARDING_DATA } from './constants';
+import { INITIAL_SCHOOLS, INITIAL_ONBOARDING_DATA } from './constants';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import SchoolDatabase from './components/SchoolDatabase';
 import Wiki from './components/Wiki';
 import AIAssistant from './components/AIAssistant';
 import Onboarding from './components/Onboarding';
+import { getWikiArticles } from './services/firebase';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>(View.DASHBOARD);
   
-  // Lifted state to share data between components (and potentially context for AI)
+  // Lifted state to share data between components
   const [schools, setSchools] = useState<School[]>(INITIAL_SCHOOLS);
-  const [wikiArticles, setWikiArticles] = useState<WikiArticle[]>(INITIAL_WIKI_ARTICLES);
+  const [wikiArticles, setWikiArticles] = useState<WikiArticle[]>([]); // Start empty, load from DB
   const [onboardingTasks, setOnboardingTasks] = useState<OnboardingTask[]>(INITIAL_ONBOARDING_DATA);
+
+  // Load Wiki Data from Firebase
+  useEffect(() => {
+    const loadData = async () => {
+      const data = await getWikiArticles();
+      setWikiArticles(data);
+    };
+    loadData();
+  }, []);
 
   const renderContent = () => {
     switch (currentView) {
