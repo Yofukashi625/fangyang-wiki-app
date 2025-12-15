@@ -19,8 +19,8 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
   // Editing / Creating State
   const [isEditing, setIsEditing] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [isSaving, setIsSaving] = useState(false); // Loading state for save
-  const [isDeleting, setIsDeleting] = useState(false); // Loading state for delete
+  const [isSaving, setIsSaving] = useState(false); 
+  // Removed isDeleting as we are now using optimistic updates
   const [editForm, setEditForm] = useState<Partial<WikiArticle>>({});
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -45,8 +45,8 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
       tags: []
     });
     setIsCreating(true);
-    setSelectedArticle(null); // Ensure detail view is clear
-    setIsEditing(true); // Reuse edit UI
+    setSelectedArticle(null); 
+    setIsEditing(true); 
   };
 
   const handleStartEdit = (article: WikiArticle) => {
@@ -56,22 +56,21 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
   };
 
   const handleDelete = async (articleId: string) => {
-    console.log("Initiating delete for:", articleId);
-    if(!window.confirm("確定要刪除此條目嗎？此動作無法復原。")) return;
+    // 1. Optimistic Update: Immediately remove from UI to feel instant
+    const previousArticles = [...articles];
+    setArticles(prev => prev.filter(a => a.id !== articleId));
+    setSelectedArticle(null); // Return to list view
+    setIsEditing(false);
 
-    setIsDeleting(true);
+    // 2. Background Firebase Operation
     try {
       await deleteWikiArticle(articleId);
-      // Update local state
-      setArticles(prev => prev.filter(a => a.id !== articleId));
-      // Reset view
-      setSelectedArticle(null);
-      setIsEditing(false);
+      console.log("Firebase delete successful");
     } catch (e) {
       console.error("Delete failed:", e);
-      alert("刪除失敗，請檢查網路連線或確認您有權限執行此動作。");
-    } finally {
-      setIsDeleting(false);
+      // Rollback on error
+      setArticles(previousArticles);
+      alert("刪除失敗，已還原資料。請檢查網路連線。");
     }
   };
 
@@ -291,18 +290,15 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
           <div className="flex gap-2">
             <button 
               onClick={() => handleStartEdit(selectedArticle)}
-              disabled={isDeleting}
-              className="px-3 py-1.5 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 flex items-center gap-2 text-sm font-medium transition-colors disabled:opacity-50"
+              className="px-3 py-1.5 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 flex items-center gap-2 text-sm font-medium transition-colors"
             >
               <Edit3 size={16} /> 編輯
             </button>
             <button 
               onClick={() => handleDelete(selectedArticle.id)}
-              disabled={isDeleting}
-              className="px-3 py-1.5 border border-red-200 text-red-500 rounded-lg hover:bg-red-50 flex items-center gap-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-1.5 border border-red-200 text-red-500 rounded-lg hover:bg-red-50 flex items-center gap-2 text-sm font-medium transition-colors"
             >
-              {isDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
-              {isDeleting ? '刪除中...' : '刪除'}
+              <Trash2 size={16} /> 刪除
             </button>
           </div>
         </div>
