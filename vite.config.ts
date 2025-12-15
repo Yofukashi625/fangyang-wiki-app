@@ -9,7 +9,9 @@ export default defineConfig({
     outDir: 'dist',
   },
   define: {
-    // Prevent crash if process is undefined in browser, but users should ideally use import.meta.env
-    'process.env': process.env
+    // Fix: Safely map process.env.API_KEY for the browser
+    'process.env': {
+      API_KEY: process.env.API_KEY || ''
+    }
   }
 })

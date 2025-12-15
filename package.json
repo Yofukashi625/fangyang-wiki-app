@@ -11,7 +11,7 @@
     "deploy": "npm run build && firebase deploy"
   },
   "dependencies": {
-    "@google/genai": "^0.1.2",
+    "@google/genai": "^1.0.0",
     "firebase": "^10.12.0",
     "lucide-react": "^0.378.0",
     "react": "^18.3.1",
