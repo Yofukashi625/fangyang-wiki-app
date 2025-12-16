@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { School } from '../types';
-import { Search, Filter, Upload, MapPin, DollarSign, Book, Loader2, School as SchoolIcon, Plus, X, Trash2, Edit2, Save, GraduationCap, CheckCircle, ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
+import { Search, Filter, Upload, MapPin, DollarSign, Book, Loader2, School as SchoolIcon, Plus, X, Trash2, Edit2, Save, GraduationCap, CheckCircle, ChevronLeft, ChevronRight, BookOpen, Trophy } from 'lucide-react';
 import { parseSchoolDocument } from '../services/geminiService';
 import { addSchool, updateSchool, deleteSchool } from '../services/firebase';
 
@@ -43,7 +43,6 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
   
   const parseRequirementValue = (valStr?: string): number => {
     if (!valStr) return 0;
-    // Extract first number (float) from string like "3.5+", "92 (min)", "6.5"
     const match = valStr.match(/(\d+(\.\d+)?)/);
     return match ? parseFloat(match[0]) : 0;
   };
@@ -52,19 +51,27 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
     if (!scoreFilterType || !scoreFilterValue) return true;
     
     const userScore = parseFloat(scoreFilterValue);
-    if (isNaN(userScore)) return true; // Ignore invalid input
+    if (isNaN(userScore)) return true;
 
     let reqStr = '';
     if (scoreFilterType === 'GPA') reqStr = school.requirements.gpa || '';
     if (scoreFilterType === 'TOEFL') reqStr = school.requirements.toefl || '';
     if (scoreFilterType === 'IELTS') reqStr = school.requirements.ielts || '';
 
-    if (!reqStr) return false; // If school doesn't list requirement, assume it might not match (or debatable)
+    if (!reqStr) return false;
 
     const schoolScore = parseRequirementValue(reqStr);
-    
-    // Logic: User Score must be >= School Requirement
     return userScore >= schoolScore;
+  };
+
+  const removeUndefined = (obj: any) => {
+    const newObj = { ...obj };
+    Object.keys(newObj).forEach(key => {
+      if (newObj[key] === undefined) {
+        delete newObj[key];
+      }
+    });
+    return newObj;
   };
 
   // --- Actions ---
@@ -94,6 +101,9 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
         country: newSchoolData.country || 'USA',
         type: (newSchoolData.type as any) || 'University',
         programs: newSchoolData.programs || [],
+        department: newSchoolData.department || '',
+        qsRanking: newSchoolData.qsRanking,
+        usNewsRanking: newSchoolData.usNewsRanking,
         tuitionRange: newSchoolData.tuitionRange || 'TBD',
         requirements: newSchoolData.requirements || {},
         tags: newSchoolData.tags || [],
@@ -102,13 +112,16 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
         isPartner: false
       };
 
+      // Clean undefined values
+      const cleanedPayload = removeUndefined(newSchoolPayload);
+
       // Save to Firebase
-      const newId = await addSchool(newSchoolPayload);
+      const newId = await addSchool(cleanedPayload);
 
       const newSchool: School = {
         id: newId,
         ...newSchoolPayload
-      };
+      } as School;
 
       setSchools(prev => [newSchool, ...prev]);
       alert(`成功匯入院校資料: ${newSchool.name}`);
@@ -126,8 +139,11 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
       name: '',
       location: '',
       country: 'USA',
-      type: 'Graduate School', // Default to new type
+      type: 'Graduate School',
       programs: [],
+      department: '',
+      qsRanking: undefined,
+      usNewsRanking: undefined,
       tuitionRange: '',
       requirements: { gpa: '', toefl: '', ielts: '' },
       tags: [],
@@ -140,7 +156,7 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
 
   const openViewModal = (school: School) => {
     setCurrentSchool(school);
-    setEditForm(school); // Pre-fill in case they switch to edit
+    setEditForm(school);
     setModalMode('VIEW');
     setIsModalOpen(true);
   };
@@ -183,6 +199,9 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
           country: editForm.country || '',
           type: editForm.type as any || 'University',
           programs: typeof editForm.programs === 'string' ? (editForm.programs as string).split(',').map((s: string) => s.trim()) : (editForm.programs || []),
+          department: editForm.department || '',
+          qsRanking: editForm.qsRanking ? Number(editForm.qsRanking) : undefined,
+          usNewsRanking: editForm.usNewsRanking ? Number(editForm.usNewsRanking) : undefined,
           tuitionRange: editForm.tuitionRange || '',
           requirements: editForm.requirements || {},
           tags: typeof editForm.tags === 'string' ? (editForm.tags as string).split(',').map((s: string) => s.trim()) : (editForm.tags || []),
@@ -191,9 +210,9 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
           updatedAt: today
         };
         
-        const newId = await addSchool(newSchoolData);
-        
-        setSchools(prev => [{ id: newId, ...newSchoolData }, ...prev]);
+        const cleanedData = removeUndefined(newSchoolData);
+        const newId = await addSchool(cleanedData);
+        setSchools(prev => [{ id: newId, ...newSchoolData } as School, ...prev]);
         
       } else if (modalMode === 'EDIT' && currentSchool) {
         
@@ -201,10 +220,13 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
           ...editForm,
           programs: Array.isArray(editForm.programs) ? editForm.programs : (editForm.programs as unknown as string).split(',').map((s: string) => s.trim()),
           tags: Array.isArray(editForm.tags) ? editForm.tags : (editForm.tags as unknown as string).split(',').map((s: string) => s.trim()),
+          qsRanking: editForm.qsRanking ? Number(editForm.qsRanking) : undefined,
+          usNewsRanking: editForm.usNewsRanking ? Number(editForm.usNewsRanking) : undefined,
           updatedAt: today
         };
 
-        await updateSchool(currentSchool.id, updates);
+        const cleanedUpdates = removeUndefined(updates);
+        await updateSchool(currentSchool.id, cleanedUpdates);
 
         setSchools(prev => prev.map(s => s.id === currentSchool.id ? { ...s, ...updates } as School : s));
       }
@@ -229,7 +251,6 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
     return matchesSearch && matchesCountry && matchesScore;
   });
 
-  // Pagination Logic
   const totalPages = Math.max(1, Math.ceil(filteredSchools.length / ITEMS_PER_PAGE));
   const currentSchools = filteredSchools.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
@@ -244,7 +265,7 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
       <div className="flex justify-between items-center mb-8">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">合作院校資料庫</h2>
-          <p className="text-gray-500 mt-1">快速查詢學校入學要求、學費與特色</p>
+          <p className="text-gray-500 mt-1">快速查詢學校排名、入學要求與科系資訊</p>
         </div>
         
         <div className="flex gap-3">
@@ -349,20 +370,32 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
                 <MapPin size={14} className="mr-1" />
                 {school.location}, {school.country}
               </div>
+
+              {/* Ranking Badge Mini */}
+              {(school.qsRanking || school.usNewsRanking) && (
+                <div className="flex gap-2 mb-3">
+                   {school.qsRanking && <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100">QS #{school.qsRanking}</span>}
+                   {school.usNewsRanking && <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded border border-indigo-100">US News #{school.usNewsRanking}</span>}
+                </div>
+              )}
               
               <div className="space-y-3 mb-4">
                 <div className="flex items-start gap-2 text-sm text-gray-600">
                   <DollarSign size={16} className="mt-0.5 text-gray-400 shrink-0" />
                   <span>{school.tuitionRange} / year</span>
                 </div>
+                {/* Department or Program */}
                 <div className="flex items-start gap-2 text-sm text-gray-600">
                   <Book size={16} className="mt-0.5 text-gray-400 shrink-0" />
-                  <span className="line-clamp-2">{school.programs.join(', ')}</span>
+                  <span className="line-clamp-2">
+                     {school.department ? `${school.department} - ` : ''}
+                     {school.programs.join(', ')}
+                  </span>
                 </div>
               </div>
 
               <div className="bg-gray-50 p-3 rounded-lg mb-4">
-                <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Admission Reqs</p>
+                <p className="text-xs font-semibold text-gray-500 uppercase mb-1">入學門檻</p>
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-700">
                   {school.requirements.gpa && (
                     <span className={scoreFilterType === 'GPA' ? 'font-bold text-[#FF4B7D]' : ''}>
@@ -372,11 +405,6 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
                   {school.requirements.toefl && (
                     <span className={scoreFilterType === 'TOEFL' ? 'font-bold text-[#FF4B7D]' : ''}>
                       TOEFL: <b>{school.requirements.toefl}</b>
-                    </span>
-                  )}
-                  {school.requirements.ielts && (
-                    <span className={scoreFilterType === 'IELTS' ? 'font-bold text-[#FF4B7D]' : ''}>
-                      IELTS: <b>{school.requirements.ielts}</b>
                     </span>
                   )}
                 </div>
@@ -469,12 +497,11 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
                        </div>
                      </div>
                      
-                     {/* Optimized Badge Layout */}
-                     <div className="flex items-center gap-2 shrink-0">
+                     <div className="flex flex-col items-end gap-2 shrink-0">
                         {currentSchool.isPartner && (
                            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 border border-orange-100 rounded-full text-orange-600 font-bold text-sm" title="合作校 Partner">
                              <CheckCircle size={16} />
-                             <span>Partner</span>
+                             <span>合作校</span>
                            </div>
                         )}
                         <span className="px-3 py-1.5 bg-[#FF4B7D]/10 text-[#FF4B7D] border border-[#FF4B7D]/20 rounded-full text-sm font-semibold">
@@ -483,29 +510,38 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
                      </div>
                    </div>
 
-                   {/* Description Field (Visible in View Mode if exists) */}
-                   {currentSchool.description && (
-                     <div className="bg-rose-50/50 p-6 rounded-2xl border border-rose-100 text-gray-800 leading-relaxed text-base break-words whitespace-pre-wrap">
-                       <h4 className="font-bold text-[#FF4B7D] mb-3 text-xs uppercase tracking-wider flex items-center gap-2">
-                         <BookOpen size={14} /> About School
-                       </h4>
-                       {currentSchool.description}
-                     </div>
+                   {/* Rankings Section */}
+                   {(currentSchool.qsRanking || currentSchool.usNewsRanking) && (
+                      <div className="flex gap-4">
+                        {currentSchool.qsRanking && (
+                          <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg border border-blue-100 font-bold">
+                            <Trophy size={18} /> QS 排名 #{currentSchool.qsRanking}
+                          </div>
+                        )}
+                        {currentSchool.usNewsRanking && (
+                          <div className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-100 font-bold">
+                            <Trophy size={18} /> US News 排名 #{currentSchool.usNewsRanking}
+                          </div>
+                        )}
+                      </div>
                    )}
 
                    <div className="grid grid-cols-2 gap-6">
                      <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100">
-                       <p className="text-sm text-gray-500 mb-1 flex items-center gap-1"><DollarSign size={14}/> Tuition Range</p>
+                       <p className="text-sm text-gray-500 mb-1 flex items-center gap-1"><DollarSign size={14}/> 年學費範圍</p>
                        <p className="font-bold text-gray-900 text-lg">{currentSchool.tuitionRange}</p>
                      </div>
                      <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100">
-                       <p className="text-sm text-gray-500 mb-1">Last Updated</p>
+                       <p className="text-sm text-gray-500 mb-1">最後更新日期</p>
                        <p className="font-bold text-gray-900 text-lg">{currentSchool.updatedAt}</p>
                      </div>
                    </div>
 
                    <div>
-                     <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2"><Book size={18} className="text-[#FF4B7D]" /> Popular Programs</h4>
+                     <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2"><Book size={18} className="text-[#FF4B7D]" /> 熱門科系 / 學院</h4>
+                     {currentSchool.department && (
+                       <p className="text-gray-700 font-medium mb-2">{currentSchool.department}</p>
+                     )}
                      <div className="flex flex-wrap gap-2">
                        {currentSchool.programs.map(p => (
                          <span key={p} className="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-xl text-sm font-medium border border-indigo-100">{p}</span>
@@ -514,7 +550,7 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
                    </div>
 
                    <div>
-                     <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2"><GraduationCap size={18} className="text-[#FF4B7D]" /> Admission Requirements</h4>
+                     <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2"><GraduationCap size={18} className="text-[#FF4B7D]" /> 入學要求 (Requirements)</h4>
                      <div className="bg-white border border-gray-200 rounded-2xl p-6 grid grid-cols-2 sm:grid-cols-4 gap-6 shadow-sm">
                         <div className="text-center">
                           <p className="text-xs text-gray-400 uppercase mb-1 font-semibold tracking-wide">GPA</p>
@@ -536,13 +572,23 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
                    </div>
 
                    <div>
-                     <h4 className="font-bold text-gray-800 mb-3">Tags</h4>
+                     <h4 className="font-bold text-gray-800 mb-3">標籤 Tags</h4>
                      <div className="flex flex-wrap gap-2">
                        {currentSchool.tags.map(t => (
                          <span key={t} className="text-xs text-gray-500 bg-white border border-gray-200 px-3 py-1.5 rounded-lg font-medium">#{t}</span>
                        ))}
                      </div>
                    </div>
+                   
+                   {/* Description moved to bottom */}
+                   {currentSchool.description && (
+                     <div className="bg-rose-50/50 p-6 rounded-2xl border border-rose-100 text-gray-800 leading-relaxed text-base break-words whitespace-pre-wrap mt-6">
+                       <h4 className="font-bold text-[#FF4B7D] mb-3 text-xs uppercase tracking-wider flex items-center gap-2">
+                         <BookOpen size={14} /> 關於學校
+                       </h4>
+                       {currentSchool.description}
+                     </div>
+                   )}
                 </div>
               ) : (
                 // EDIT / ADD MODE
@@ -569,6 +615,18 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
                         onChange={e => setEditForm({...editForm, name: e.target.value})}
                       />
                     </div>
+                    
+                    {/* Department moved here */}
+                    <div className="col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">科系 / 學院名稱 Department</label>
+                      <input 
+                        className="w-full p-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF4B7D] focus:outline-none placeholder-gray-400 text-gray-900"
+                        value={editForm.department || ''}
+                        onChange={e => setEditForm({...editForm, department: e.target.value})}
+                        placeholder="e.g. College of Engineering"
+                      />
+                    </div>
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">地點 Location</label>
                       <input 
@@ -611,26 +669,30 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">詳細介紹 Description (不會顯示在列表卡片上)</label>
-                    <textarea 
-                      className="w-full h-24 p-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF4B7D] focus:outline-none placeholder-gray-400 text-gray-900 text-sm"
-                      value={editForm.description || ''}
-                      onChange={e => setEditForm({...editForm, description: e.target.value})}
-                      placeholder="請輸入學校的詳細介紹、歷史背景或特色..."
-                    />
+                  <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg border border-gray-100">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">QS 排名</label>
+                      <input 
+                        type="number"
+                        className="w-full p-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF4B7D] focus:outline-none placeholder-gray-400 text-gray-900"
+                        placeholder="e.g. 50"
+                        value={editForm.qsRanking || ''}
+                        onChange={e => setEditForm({...editForm, qsRanking: Number(e.target.value)})}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">US News 排名</label>
+                      <input 
+                        type="number"
+                        className="w-full p-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF4B7D] focus:outline-none placeholder-gray-400 text-gray-900"
+                        placeholder="e.g. 25"
+                        value={editForm.usNewsRanking || ''}
+                        onChange={e => setEditForm({...editForm, usNewsRanking: Number(e.target.value)})}
+                      />
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">熱門科系 Programs (以逗號分隔)</label>
-                    <input 
-                      className="w-full p-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF4B7D] focus:outline-none placeholder-gray-400 text-gray-900"
-                      value={Array.isArray(editForm.programs) ? editForm.programs.join(', ') : editForm.programs || ''}
-                      onChange={e => setEditForm({...editForm, programs: e.target.value as any})}
-                      placeholder="Computer Science, Business, Engineering"
-                    />
-                  </div>
-
+                  {/* Requirements moved here */}
                   <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
                     <p className="text-sm font-bold text-gray-700 mb-3">入學要求 Requirements</p>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -654,12 +716,33 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
                   </div>
 
                   <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">熱門科系 Programs (以逗號分隔)</label>
+                    <input 
+                      className="w-full p-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF4B7D] focus:outline-none placeholder-gray-400 text-gray-900"
+                      value={Array.isArray(editForm.programs) ? editForm.programs.join(', ') : editForm.programs || ''}
+                      onChange={e => setEditForm({...editForm, programs: e.target.value as any})}
+                      placeholder="Computer Science, Business, Engineering"
+                    />
+                  </div>
+
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">標籤 Tags (以逗號分隔)</label>
                     <input 
                       className="w-full p-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF4B7D] focus:outline-none placeholder-gray-400 text-gray-900"
                       value={Array.isArray(editForm.tags) ? editForm.tags.join(', ') : editForm.tags || ''}
                       onChange={e => setEditForm({...editForm, tags: e.target.value as any})}
                       placeholder="STEM, Urban, Top 50"
+                    />
+                  </div>
+
+                  {/* Description moved to bottom */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">詳細介紹 Description</label>
+                    <textarea 
+                      className="w-full h-24 p-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF4B7D] focus:outline-none placeholder-gray-400 text-gray-900 text-sm"
+                      value={editForm.description || ''}
+                      onChange={e => setEditForm({...editForm, description: e.target.value})}
+                      placeholder="請輸入學校的詳細介紹、歷史背景或特色..."
                     />
                   </div>
 

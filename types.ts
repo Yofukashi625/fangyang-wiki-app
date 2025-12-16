@@ -5,6 +5,7 @@ export enum View {
   WIKI = 'WIKI',
   AI_CHAT = 'AI_CHAT',
   ONBOARDING = 'ONBOARDING',
+  PLACEMENT = 'PLACEMENT',
   SETTINGS = 'SETTINGS'
 }
 
@@ -14,7 +15,10 @@ export interface School {
   location: string;
   country: string;
   type: 'Graduate School' | 'University' | 'High School' | 'Language School';
-  programs: string[];
+  programs: string[]; // General popular programs
+  department?: string; // Specific department or faculty focus
+  qsRanking?: number;
+  usNewsRanking?: number;
   tuitionRange: string; // e.g., "$30,000 - $45,000"
   requirements: {
     gpa?: string;

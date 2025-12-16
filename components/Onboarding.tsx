@@ -1,9 +1,9 @@
 
 import React, { useState } from 'react';
 import { OnboardingTask } from '../types';
-import { Plus, Edit2, Trash2, Calendar, Save, X, CheckSquare, Eye, Loader2 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
+import { Plus, Edit2, Trash2, Calendar, Save, X, Eye, Loader2 } from 'lucide-react';
 import { addOnboardingTask, updateOnboardingTask, deleteOnboardingTask } from '../services/firebase';
+import { RichTextEditor } from './RichTextEditor';
 
 interface OnboardingProps {
   tasks: OnboardingTask[];
@@ -25,7 +25,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ tasks, setTasks }) => {
     setEditForm({
       day: day,
       title: '',
-      description: '- [ ] 任務 1\n- [ ] 任務 2'
+      description: '' // Empty content triggers placeholder
     });
     setModalMode('ADD');
     setIsModalOpen(true);
@@ -135,8 +135,9 @@ const Onboarding: React.FC<OnboardingProps> = ({ tasks, setTasks }) => {
                   </div>
                   
                   <div className="p-4 flex-1 overflow-hidden relative">
-                    <div className="text-xs text-gray-500 line-clamp-6 prose prose-xs prose-p:my-0 prose-ul:my-0">
-                      <ReactMarkdown>{task.description}</ReactMarkdown>
+                    {/* Strip HTML tags for preview */}
+                    <div className="text-xs text-gray-500 line-clamp-6 prose prose-xs">
+                      {task.description.replace(/<[^>]*>?/gm, '')}
                     </div>
                     {/* Fade overlay for long content */}
                     <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white to-transparent pointer-events-none"></div>
@@ -202,9 +203,10 @@ const Onboarding: React.FC<OnboardingProps> = ({ tasks, setTasks }) => {
                 // View Mode
                 <div>
                    <h2 className="text-2xl font-bold text-gray-900 mb-4">{editForm.title}</h2>
-                   <div className="prose prose-slate prose-sm max-w-none text-gray-700 leading-relaxed bg-gray-50 p-6 rounded-xl border border-gray-100">
-                     <ReactMarkdown>{editForm.description || ''}</ReactMarkdown>
-                   </div>
+                   <div 
+                     className="prose prose-slate prose-sm max-w-none text-gray-700 leading-relaxed bg-gray-50 p-6 rounded-xl border border-gray-100"
+                     dangerouslySetInnerHTML={{ __html: editForm.description || '' }}
+                   />
                 </div>
               ) : (
                 // Edit/Add Mode
@@ -222,17 +224,13 @@ const Onboarding: React.FC<OnboardingProps> = ({ tasks, setTasks }) => {
                   
                   <div>
                     <div className="flex justify-between mb-1">
-                      <label className="block text-sm font-medium text-gray-700">詳細任務內容 (Markdown)</label>
-                      <div className="flex items-center gap-2 text-xs text-gray-400">
-                        <CheckSquare size={12} />
-                        <span>支援 - [ ] 待辦清單</span>
-                      </div>
+                      <label className="block text-sm font-medium text-gray-700">詳細任務內容</label>
                     </div>
-                    <textarea 
-                      className="w-full h-96 p-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF4B7D] focus:outline-none font-mono text-sm placeholder-gray-400 leading-relaxed text-gray-900"
-                      value={editForm.description}
-                      onChange={e => setEditForm({...editForm, description: e.target.value})}
-                      placeholder="- [ ] 閱讀員工手冊&#10;- [ ] 設定 Email"
+                    <RichTextEditor 
+                      value={editForm.description || ''}
+                      onChange={(val) => setEditForm({...editForm, description: val})}
+                      placeholder="請輸入培訓內容..."
+                      className="min-h-[300px]"
                     />
                   </div>
                 </>

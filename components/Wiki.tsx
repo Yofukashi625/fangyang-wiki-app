@@ -1,10 +1,10 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { WikiArticle, WikiCategory } from '../types';
 import { CATEGORY_LABELS } from '../constants';
-import { Search, ChevronRight, FileText, Plus, Edit3, Trash2, ArrowLeft, Save, Bold, Italic, List, Heading1, Heading2, Link, Underline as UnderlineIcon, ListOrdered, Loader2 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
+import { Search, ChevronRight, FileText, Plus, Edit3, Trash2, ArrowLeft, Save, Loader2 } from 'lucide-react';
 import { addWikiArticle, updateWikiArticle, deleteWikiArticle } from '../services/firebase';
+import { RichTextEditor } from './RichTextEditor';
 
 interface WikiProps {
   articles: WikiArticle[];
@@ -20,9 +20,8 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isSaving, setIsSaving] = useState(false); 
-  // Removed isDeleting as we are now using optimistic updates
+  
   const [editForm, setEditForm] = useState<Partial<WikiArticle>>({});
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const filteredArticles = articles.filter(article => {
     const matchesCategory = activeCategory === 'ALL' || article.category === activeCategory;
@@ -41,7 +40,7 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
     setEditForm({
       title: '',
       category: WikiCategory.PROCESS,
-      content: '',
+      content: '', // Empty content to trigger placeholder
       tags: []
     });
     setIsCreating(true);
@@ -56,19 +55,15 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
   };
 
   const handleDelete = async (articleId: string) => {
-    // 1. Optimistic Update: Immediately remove from UI to feel instant
     const previousArticles = [...articles];
     setArticles(prev => prev.filter(a => a.id !== articleId));
-    setSelectedArticle(null); // Return to list view
+    setSelectedArticle(null); 
     setIsEditing(false);
 
-    // 2. Background Firebase Operation
     try {
       await deleteWikiArticle(articleId);
-      console.log("Firebase delete successful");
     } catch (e) {
       console.error("Delete failed:", e);
-      // Rollback on error
       setArticles(previousArticles);
       alert("刪除失敗，已還原資料。請檢查網路連線。");
     }
@@ -90,7 +85,6 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
 
     try {
       if (isCreating) {
-        // Prepare data without ID for Firebase
         const newArticleData = {
           title: editForm.title!,
           category: editForm.category || WikiCategory.PROCESS,
@@ -99,10 +93,8 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
           lastModified: timestamp
         };
 
-        // Save to Firebase
         const newId = await addWikiArticle(newArticleData);
 
-        // Update Local State
         const newArticle: WikiArticle = {
           id: newId,
           ...newArticleData
@@ -111,7 +103,6 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
         setSelectedArticle(newArticle);
 
       } else if (selectedArticle && editForm.id) {
-        // Updating
         const updates = {
           title: editForm.title!,
           category: editForm.category || selectedArticle.category,
@@ -139,31 +130,6 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
     } finally {
       setIsSaving(false);
     }
-  };
-
-  // --- Markdown Toolbar Helpers ---
-  const insertMarkdown = (prefix: string, suffix: string = '') => {
-    if (!textareaRef.current) return;
-    
-    const start = textareaRef.current.selectionStart;
-    const end = textareaRef.current.selectionEnd;
-    const currentText = editForm.content || '';
-    
-    const before = currentText.substring(0, start);
-    const selection = currentText.substring(start, end);
-    const after = currentText.substring(end);
-    
-    const newText = `${before}${prefix}${selection}${suffix}${after}`;
-    
-    setEditForm({ ...editForm, content: newText });
-    
-    // Defer focus to allow state update
-    setTimeout(() => {
-      if (textareaRef.current) {
-        textareaRef.current.focus();
-        textareaRef.current.setSelectionRange(start + prefix.length, end + prefix.length);
-      }
-    }, 0);
   };
 
   // --- Render Views ---
@@ -229,44 +195,14 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
               />
             </div>
 
-            <div className="border border-gray-300 rounded-lg overflow-hidden bg-white">
-              {/* Visual Editor Toolbar */}
-              <div className="flex items-center gap-1 p-2 border-b border-gray-200 bg-gray-50 flex-wrap">
-                <button onClick={() => insertMarkdown('**', '**')} className="p-1.5 text-gray-600 hover:bg-gray-200 rounded" title="Bold (粗體)">
-                  <Bold size={18} />
-                </button>
-                <button onClick={() => insertMarkdown('*', '*')} className="p-1.5 text-gray-600 hover:bg-gray-200 rounded" title="Italic (斜體)">
-                  <Italic size={18} />
-                </button>
-                <button onClick={() => insertMarkdown('<u>', '</u>')} className="p-1.5 text-gray-600 hover:bg-gray-200 rounded" title="Underline (底線)">
-                  <UnderlineIcon size={18} />
-                </button>
-                <div className="w-px h-5 bg-gray-300 mx-1" />
-                <button onClick={() => insertMarkdown('# ')} className="p-1.5 text-gray-600 hover:bg-gray-200 rounded" title="Heading 1 (大標題)">
-                  <Heading1 size={18} />
-                </button>
-                <button onClick={() => insertMarkdown('## ')} className="p-1.5 text-gray-600 hover:bg-gray-200 rounded" title="Heading 2 (副標題)">
-                  <Heading2 size={18} />
-                </button>
-                <div className="w-px h-5 bg-gray-300 mx-1" />
-                <button onClick={() => insertMarkdown('- ')} className="p-1.5 text-gray-600 hover:bg-gray-200 rounded" title="List (項目符號)">
-                  <List size={18} />
-                </button>
-                <button onClick={() => insertMarkdown('1. ')} className="p-1.5 text-gray-600 hover:bg-gray-200 rounded" title="Ordered List (編號清單)">
-                  <ListOrdered size={18} />
-                </button>
-                <button onClick={() => insertMarkdown('[', '](url)')} className="p-1.5 text-gray-600 hover:bg-gray-200 rounded" title="Link (連結)">
-                  <Link size={18} />
-                </button>
-              </div>
-              
-              <textarea 
-                ref={textareaRef}
-                className="w-full h-96 p-4 focus:outline-none font-mono text-sm leading-relaxed placeholder-gray-400 text-gray-900 bg-white resize-none"
-                value={editForm.content || ''}
-                onChange={e => setEditForm({...editForm, content: e.target.value})}
-                placeholder="# 請在此輸入內容... &#10;可以使用上方工具列輔助排版"
-                disabled={isSaving}
+            {/* WYSIWYG Editor */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">內容 Content</label>
+              <RichTextEditor 
+                value={editForm.content || ''} 
+                onChange={(val) => setEditForm({...editForm, content: val})} 
+                placeholder="請輸入詳細內容..."
+                className="min-h-[400px]"
               />
             </div>
           </div>
@@ -319,9 +255,10 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
             <p className="text-sm text-gray-400">最後更新: {selectedArticle.lastModified}</p>
           </div>
           
-          <div className="p-8 prose prose-slate max-w-none text-gray-700 leading-relaxed">
-            <ReactMarkdown>{selectedArticle.content}</ReactMarkdown>
-          </div>
+          <div 
+            className="p-8 prose prose-slate max-w-none text-gray-700 leading-relaxed"
+            dangerouslySetInnerHTML={{ __html: selectedArticle.content }}
+          />
         </div>
       </div>
     );
@@ -402,9 +339,9 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
                     <span className="text-xs text-gray-400 whitespace-nowrap bg-gray-50 px-2 py-1 rounded">{article.lastModified}</span>
                   </div>
                   
-                  {/* Preview Content (Strip markdown manually for preview) */}
+                  {/* Preview Content (Strip HTML tags manually for preview) */}
                   <p className="text-gray-500 text-sm line-clamp-2 mb-3">
-                    {article.content.replace(/[#*`_]/g, '').substring(0, 150)}...
+                    {article.content.replace(/<[^>]*>?/gm, '').substring(0, 150)}...
                   </p>
                   
                   <div className="flex items-center gap-2">
@@ -436,4 +373,3 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
 };
 
 export default Wiki;
-    

@@ -8,6 +8,7 @@ import SchoolDatabase from './components/SchoolDatabase';
 import Wiki from './components/Wiki';
 import AIAssistant from './components/AIAssistant';
 import Onboarding from './components/Onboarding';
+import SchoolPlacement from './components/SchoolPlacement';
 import { getWikiArticles, getSchools, getOnboardingTasks } from './services/firebase';
 
 const App: React.FC = () => {
@@ -31,8 +32,6 @@ const App: React.FC = () => {
         setWikiArticles(wikiData);
         
         // Use Firebase data if available, otherwise fallback to constants (or empty)
-        // This logic ensures if DB is empty (first run), we might see empty lists, 
-        // but typically you'd run a migration script. For now, we prefer DB truth.
         setSchools(schoolData.length > 0 ? schoolData : []);
         setOnboardingTasks(taskData.length > 0 ? taskData : []);
       } catch (e) {
@@ -52,6 +51,8 @@ const App: React.FC = () => {
         return <Wiki articles={wikiArticles} setArticles={setWikiArticles} />;
       case View.ONBOARDING:
         return <Onboarding tasks={onboardingTasks} setTasks={setOnboardingTasks} />;
+      case View.PLACEMENT:
+        return <SchoolPlacement schools={schools} />;
       case View.AI_CHAT:
         return <AIAssistant wikiArticles={wikiArticles} schools={schools} />;
       case View.SETTINGS:

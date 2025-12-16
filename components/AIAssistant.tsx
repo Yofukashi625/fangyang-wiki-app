@@ -23,7 +23,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ wikiArticles, schools }) => {
     {
       id: 'welcome',
       role: 'model',
-      text: '你好！我是 EduConnect 智能助教。\n我可以協助你查詢學校資料、解釋專有名詞（如 ATAS, STEM）或是提供銷售話術建議。\n\n請直接提問，或選擇下方的常見問題。',
+      text: '你好！我是 FangYang Nexus 智能助教。\n我可以協助你查詢學校資料、解釋專有名詞（如 ATAS, STEM）或是提供銷售話術建議。\n\n請直接提問，或選擇下方的常見問題。',
       timestamp: new Date(),
       confidence: 'HIGH'
     }

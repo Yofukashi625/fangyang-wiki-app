@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { View, School, WikiArticle } from '../types';
-import { School as SchoolIcon, BookOpen, ExternalLink, ArrowRight } from 'lucide-react';
+import { School as SchoolIcon, BookOpen, ExternalLink, ArrowRight, Target } from 'lucide-react';
 
 interface DashboardProps {
   schools: School[];
@@ -13,8 +13,8 @@ const Dashboard: React.FC<DashboardProps> = ({ schools, wikiArticles, setCurrent
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
       <div>
-        <h2 className="text-3xl font-bold text-gray-800">早安，歡迎回來</h2>
-        <p className="text-gray-500 mt-2">歡迎回到 FangYang Connect。今天有什麼需要幫忙的嗎？</p>
+        <h2 className="text-3xl font-bold text-gray-800">早安，歡迎來到 FangYang Nexus</h2>
+        <p className="text-gray-500 mt-2">您的全方位留學顧問中控台。今天有什麼需要幫忙的嗎？</p>
       </div>
 
       {/* Onboarding / Quick Start Section */}
@@ -52,6 +52,20 @@ const Dashboard: React.FC<DashboardProps> = ({ schools, wikiArticles, setCurrent
         </div>
 
         <div 
+          onClick={() => setCurrentView(View.PLACEMENT)}
+          className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+        >
+          <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center mb-4 group-hover:bg-indigo-100 transition-colors">
+            <Target size={24} />
+          </div>
+          <h4 className="text-gray-500 text-sm font-medium">初步落點選校</h4>
+          <p className="text-lg font-bold text-gray-800 mt-1 line-clamp-1">AI 智能落點分析</p>
+          <div className="mt-5 text-xs text-indigo-600 flex items-center font-medium">
+            開始評估 <ExternalLink size={12} className="ml-1" />
+          </div>
+        </div>
+
+        <div 
           onClick={() => setCurrentView(View.WIKI)}
           className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer group"
         >
@@ -63,12 +77,6 @@ const Dashboard: React.FC<DashboardProps> = ({ schools, wikiArticles, setCurrent
           <div className="mt-4 text-xs text-orange-500 flex items-center font-medium">
             檢視最新 SOP 指南 <ExternalLink size={12} className="ml-1" />
           </div>
-        </div>
-        
-        {/* Placeholder for future expansion */}
-        <div className="bg-gray-50 p-6 rounded-xl border border-dashed border-gray-200 flex flex-col items-center justify-center text-center">
-          <p className="text-gray-400 text-sm mb-2">即將推出</p>
-          <p className="font-semibold text-gray-500">學生進度追蹤系統</p>
         </div>
       </div>
 

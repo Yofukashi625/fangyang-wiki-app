@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { View } from '../types';
-import { LayoutDashboard, BookOpen, School, MessageSquareText, Settings, Flag } from 'lucide-react';
+import { LayoutDashboard, BookOpen, School, MessageSquareText, Settings, Flag, Target } from 'lucide-react';
 
 interface SidebarProps {
   currentView: View;
@@ -12,6 +12,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView }) => {
   const menuItems = [
     { id: View.DASHBOARD, label: '總覽 Dashboard', icon: LayoutDashboard },
     { id: View.SCHOOLS, label: '合作院校資料庫', icon: School },
+    { id: View.PLACEMENT, label: '初步落點選校', icon: Target },
     { id: View.WIKI, label: '員工知識庫 & SOP', icon: BookOpen },
     { id: View.ONBOARDING, label: '新人培訓', icon: Flag },
     { id: View.AI_CHAT, label: 'AI 智能助教', icon: MessageSquareText },
@@ -21,7 +22,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView }) => {
     <div className="w-64 bg-white h-screen border-r border-gray-200 flex flex-col fixed left-0 top-0 shadow-sm z-10">
       <div className="p-6 border-b border-gray-100">
         <h1 className="text-lg font-bold text-[#FF4B7D] flex items-center gap-2 whitespace-nowrap overflow-hidden">
-          <span className="text-xl">🎓</span> FangYang Connect
+          <span className="text-xl">⚛️</span> FangYang Nexus
         </h1>
         <p className="text-xs text-gray-500 mt-1">顧問資訊整合中心</p>
       </div>
