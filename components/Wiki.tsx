@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { WikiArticle, WikiCategory } from '../types';
 import { CATEGORY_LABELS } from '../constants';
 import { Search, ChevronRight, FileText, Plus, Edit3, Trash2, ArrowLeft, Save, Loader2 } from 'lucide-react';
@@ -9,9 +8,11 @@ import { RichTextEditor } from './RichTextEditor';
 interface WikiProps {
   articles: WikiArticle[];
   setArticles: React.Dispatch<React.SetStateAction<WikiArticle[]>>;
+  initialWikiId?: string | null;
+  onClearInitialId?: () => void;
 }
 
-const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
+const Wiki: React.FC<WikiProps> = ({ articles, setArticles, initialWikiId, onClearInitialId }) => {
   const [activeCategory, setActiveCategory] = useState<WikiCategory | 'ALL'>('ALL');
   const [selectedArticle, setSelectedArticle] = useState<WikiArticle | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -22,6 +23,17 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
   const [isSaving, setIsSaving] = useState(false); 
   
   const [editForm, setEditForm] = useState<Partial<WikiArticle>>({});
+
+  // Handle deep link from Dashboard
+  useEffect(() => {
+    if (initialWikiId && articles.length > 0) {
+      const article = articles.find(a => a.id === initialWikiId);
+      if (article) {
+        setSelectedArticle(article);
+      }
+      onClearInitialId?.();
+    }
+  }, [initialWikiId, articles]);
 
   const filteredArticles = articles.filter(article => {
     const matchesCategory = activeCategory === 'ALL' || article.category === activeCategory;
@@ -40,7 +52,7 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
     setEditForm({
       title: '',
       category: WikiCategory.PROCESS,
-      content: '', // Empty content to trigger placeholder
+      content: '', 
       tags: []
     });
     setIsCreating(true);
@@ -195,7 +207,6 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
               />
             </div>
 
-            {/* WYSIWYG Editor */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">內容 Content</label>
               <RichTextEditor 
@@ -339,7 +350,6 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles }) => {
                     <span className="text-xs text-gray-400 whitespace-nowrap bg-gray-50 px-2 py-1 rounded">{article.lastModified}</span>
                   </div>
                   
-                  {/* Preview Content (Strip HTML tags manually for preview) */}
                   <p className="text-gray-500 text-sm line-clamp-2 mb-3">
                     {article.content.replace(/<[^>]*>?/gm, '').substring(0, 150)}...
                   </p>

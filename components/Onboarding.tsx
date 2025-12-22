@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { OnboardingTask } from '../types';
 import { Plus, Edit2, Trash2, Calendar, Save, X, Eye, Loader2 } from 'lucide-react';
@@ -25,7 +24,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ tasks, setTasks }) => {
     setEditForm({
       day: day,
       title: '',
-      description: '' // Empty content triggers placeholder
+      description: '' 
     });
     setModalMode('ADD');
     setIsModalOpen(true);
@@ -44,7 +43,6 @@ const Onboarding: React.FC<OnboardingProps> = ({ tasks, setTasks }) => {
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     
-    // Optimistic Update
     const prevTasks = [...tasks];
     setTasks(prev => prev.filter(t => t.id !== id));
 
@@ -67,7 +65,6 @@ const Onboarding: React.FC<OnboardingProps> = ({ tasks, setTasks }) => {
 
     try {
       if (modalMode === 'EDIT' && editForm.id) {
-        // Update
         const updates: Partial<OnboardingTask> = {
           day: editForm.day,
           title: editForm.title,
@@ -75,18 +72,15 @@ const Onboarding: React.FC<OnboardingProps> = ({ tasks, setTasks }) => {
         };
         
         await updateOnboardingTask(editForm.id, updates);
-        
         setTasks(prev => prev.map(t => t.id === editForm.id ? { ...t, ...updates } as OnboardingTask : t));
       } else {
-        // Create
         const newTaskData: Omit<OnboardingTask, 'id'> = {
-          day: editForm.day,
-          title: editForm.title,
+          day: editForm.day!,
+          title: editForm.title!,
           description: editForm.description || '',
         };
 
         const newId = await addOnboardingTask(newTaskData);
-        
         setTasks(prev => [...prev, { id: newId, ...newTaskData }]);
       }
       setIsModalOpen(false);
@@ -135,15 +129,12 @@ const Onboarding: React.FC<OnboardingProps> = ({ tasks, setTasks }) => {
                   </div>
                   
                   <div className="p-4 flex-1 overflow-hidden relative">
-                    {/* Strip HTML tags for preview */}
                     <div className="text-xs text-gray-500 line-clamp-6 prose prose-xs">
                       {task.description.replace(/<[^>]*>?/gm, '')}
                     </div>
-                    {/* Fade overlay for long content */}
                     <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white to-transparent pointer-events-none"></div>
                   </div>
 
-                  {/* Hover Actions */}
                   <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 backdrop-blur-sm rounded-lg p-1 shadow-sm z-10">
                     <button 
                       onClick={(e) => { e.stopPropagation(); handleView(task); }} 
@@ -177,8 +168,14 @@ const Onboarding: React.FC<OnboardingProps> = ({ tasks, setTasks }) => {
 
       {/* --- Modal --- */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+        <div 
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
+          onMouseDown={() => setIsModalOpen(false)}
+        >
+          <div 
+            className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
             {/* Modal Header */}
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
               <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
@@ -200,7 +197,6 @@ const Onboarding: React.FC<OnboardingProps> = ({ tasks, setTasks }) => {
             {/* Modal Body */}
             <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar">
               {modalMode === 'VIEW' ? (
-                // View Mode
                 <div>
                    <h2 className="text-2xl font-bold text-gray-900 mb-4">{editForm.title}</h2>
                    <div 
@@ -209,16 +205,14 @@ const Onboarding: React.FC<OnboardingProps> = ({ tasks, setTasks }) => {
                    />
                 </div>
               ) : (
-                // Edit/Add Mode
                 <>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">今日主題 Title</label>
                     <input 
                       className="w-full p-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF4B7D] focus:outline-none placeholder-gray-400 text-gray-900"
-                      value={editForm.title}
+                      value={editForm.title || ''}
                       onChange={e => setEditForm({...editForm, title: e.target.value})}
                       placeholder="e.g. 公司文化介紹"
-                      autoFocus
                     />
                   </div>
                   
@@ -237,7 +231,6 @@ const Onboarding: React.FC<OnboardingProps> = ({ tasks, setTasks }) => {
               )}
             </div>
 
-            {/* Modal Footer */}
             {modalMode !== 'VIEW' && (
               <div className="p-6 border-t border-gray-100 flex justify-end gap-3 bg-gray-50">
                  <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg transition-colors text-sm font-medium" disabled={isSaving}>取消</button>

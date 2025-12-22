@@ -1,18 +1,18 @@
-
 import React, { useState, useEffect } from 'react';
 import { School } from '../types';
-import { Search, Filter, Upload, MapPin, DollarSign, Book, Loader2, School as SchoolIcon, Plus, X, Trash2, Edit2, Save, GraduationCap, CheckCircle, ChevronLeft, ChevronRight, BookOpen, Trophy } from 'lucide-react';
-import { parseSchoolDocument } from '../services/geminiService';
+import { Search, Filter, MapPin, DollarSign, Book, Loader2, School as SchoolIcon, Plus, X, Trash2, Edit2, Save, GraduationCap, CheckCircle, ChevronLeft, ChevronRight, BookOpen, Trophy } from 'lucide-react';
 import { addSchool, updateSchool, deleteSchool } from '../services/firebase';
 
 interface SchoolDatabaseProps {
   schools: School[];
   setSchools: React.Dispatch<React.SetStateAction<School[]>>;
+  initialSchoolId?: string | null;
+  onClearInitialId?: () => void;
 }
 
 const ITEMS_PER_PAGE = 12;
 
-const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) => {
+const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools, initialSchoolId, onClearInitialId }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCountry, setFilterCountry] = useState('All');
   const [currentPage, setCurrentPage] = useState(1);
@@ -21,7 +21,6 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
   const [scoreFilterType, setScoreFilterType] = useState<'GPA' | 'TOEFL' | 'IELTS' | ''>('');
   const [scoreFilterValue, setScoreFilterValue] = useState('');
 
-  const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   // Modal State
@@ -33,6 +32,17 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
   const [editForm, setEditForm] = useState<Partial<School>>({});
 
   const countries = ['All', 'USA', 'Canada', 'UK', 'Australia'];
+
+  // Handle initial ID transition from Dashboard
+  useEffect(() => {
+    if (initialSchoolId && schools.length > 0) {
+      const school = schools.find(s => s.id === initialSchoolId);
+      if (school) {
+        openViewModal(school);
+      }
+      onClearInitialId?.();
+    }
+  }, [initialSchoolId, schools]);
 
   // Reset page when filters change
   useEffect(() => {
@@ -74,65 +84,22 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
     return newObj;
   };
 
-  // --- Actions ---
-
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setIsUploading(true);
-
-    const mockContent = `
-      Brochure for ${file.name.replace('.pdf', '')}
-      Location: Boston, Massachusetts.
-      Type: University.
-      Tuition: Approx $52,000 per year.
-      Popular Programs: Biotechnology, International Business, Law.
-      Admission: GPA 3.0 minimum, TOEFL 80.
-      Key features: Located downtown, great internship opportunities (CPT available).
-    `;
-
-    try {
-      const newSchoolData = await parseSchoolDocument(file.name, mockContent);
-      
-      const newSchoolPayload: Omit<School, 'id'> = {
-        name: newSchoolData.name || 'Unknown School',
-        location: newSchoolData.location || 'Unknown Location',
-        country: newSchoolData.country || 'USA',
-        type: (newSchoolData.type as any) || 'University',
-        programs: newSchoolData.programs || [],
-        department: newSchoolData.department || '',
-        qsRanking: newSchoolData.qsRanking,
-        usNewsRanking: newSchoolData.usNewsRanking,
-        tuitionRange: newSchoolData.tuitionRange || 'TBD',
-        requirements: newSchoolData.requirements || {},
-        tags: newSchoolData.tags || [],
-        updatedAt: new Date().toISOString().split('T')[0],
-        description: newSchoolData.description || '',
-        isPartner: false
-      };
-
-      // Clean undefined values
-      const cleanedPayload = removeUndefined(newSchoolPayload);
-
-      // Save to Firebase
-      const newId = await addSchool(cleanedPayload);
-
-      const newSchool: School = {
-        id: newId,
-        ...newSchoolPayload
-      } as School;
-
-      setSchools(prev => [newSchool, ...prev]);
-      alert(`成功匯入院校資料: ${newSchool.name}`);
-    } catch (e) {
-      console.error(e);
-      alert("匯入失敗，請確認檔案格式或稍後再試。");
-    } finally {
-      setIsUploading(false);
-      event.target.value = ''; 
+  const getTypeStyle = (type: string) => {
+    switch (type) {
+      case 'Graduate School':
+        return 'bg-indigo-100 text-indigo-700 border-indigo-200';
+      case 'University':
+        return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'High School':
+        return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+      case 'Language School':
+        return 'bg-amber-100 text-amber-700 border-amber-200';
+      default:
+        return 'bg-gray-100 text-gray-700 border-gray-200';
     }
   };
+
+  // --- Actions ---
 
   const openAddModal = () => {
     setEditForm({
@@ -168,7 +135,6 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
   const handleDelete = async () => {
     if (!currentSchool) return;
     
-    // Optimistic Update
     const prevSchools = [...schools];
     setSchools(prev => prev.filter(s => s.id !== currentSchool!.id));
     setIsModalOpen(false);
@@ -215,7 +181,6 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
         setSchools(prev => [{ id: newId, ...newSchoolData } as School, ...prev]);
         
       } else if (modalMode === 'EDIT' && currentSchool) {
-        
         const updates: Partial<School> = {
           ...editForm,
           programs: Array.isArray(editForm.programs) ? editForm.programs : (editForm.programs as unknown as string).split(',').map((s: string) => s.trim()),
@@ -240,12 +205,19 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
     }
   };
 
+  const handleTagClick = (e: React.MouseEvent, tag: string) => {
+    e.stopPropagation();
+    setSearchTerm(tag);
+  };
+
   // --- Render Helpers ---
 
   const filteredSchools = schools.filter(school => {
+    const searchLower = searchTerm.toLowerCase();
     const matchesSearch = 
-      school.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      school.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
+      school.name.toLowerCase().includes(searchLower) || 
+      school.tags.some(tag => tag.toLowerCase().includes(searchLower)) ||
+      (school.description || '').toLowerCase().includes(searchLower);
     const matchesCountry = filterCountry === 'All' || school.country === filterCountry;
     const matchesScore = checkScoreRequirement(school);
     return matchesSearch && matchesCountry && matchesScore;
@@ -269,12 +241,6 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
         </div>
         
         <div className="flex gap-3">
-          <label className={`flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors shadow-sm ${isUploading ? 'opacity-75 pointer-events-none' : ''}`}>
-            {isUploading ? <Loader2 className="animate-spin" size={18} /> : <Upload size={18} />}
-            <span className="font-medium text-sm">{isUploading ? 'AI 解析中...' : '上傳手冊解析'}</span>
-            <input type="file" className="hidden" accept=".pdf,.xlsx,.docx" onChange={handleFileUpload} disabled={isUploading} />
-          </label>
-
           <button 
             onClick={openAddModal}
             className="flex items-center gap-2 px-4 py-2 bg-[#FF4B7D] text-white rounded-lg hover:bg-[#E63E6D] transition-colors shadow-sm"
@@ -291,7 +257,7 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
           <input
             type="text"
-            placeholder="搜尋學校名稱、標籤 (e.g., STEM)..."
+            placeholder="搜尋學校名稱、標籤、詳細介紹..."
             className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF4B7D] text-sm text-gray-900 placeholder-gray-400"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -350,7 +316,7 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
             onClick={() => openViewModal(school)}
             className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow flex flex-col cursor-pointer group relative"
           >
-            <div className="h-2 bg-[#FF4B7D] w-full group-hover:bg-[#E63E6D] transition-colors"></div>
+            <div className={`h-2 w-full transition-colors ${school.type === 'Graduate School' ? 'bg-indigo-500' : school.type === 'University' ? 'bg-blue-500' : school.type === 'High School' ? 'bg-emerald-500' : 'bg-amber-500'}`}></div>
             
             {/* Partner Badge */}
             {school.isPartner && (
@@ -362,7 +328,9 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
 
             <div className="p-6 flex-1">
               <div className="flex justify-between items-start mb-2">
-                <span className="text-xs font-semibold text-[#FF4B7D] bg-[#FF4B7D]/10 px-2 py-1 rounded-full">{school.type}</span>
+                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded border ${getTypeStyle(school.type)}`}>
+                  {school.type}
+                </span>
                 {!school.isPartner && <span className="text-xs text-gray-400">{school.country}</span>}
               </div>
               <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-1 pr-16" title={school.name}>{school.name}</h3>
@@ -384,7 +352,6 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
                   <DollarSign size={16} className="mt-0.5 text-gray-400 shrink-0" />
                   <span>{school.tuitionRange} / year</span>
                 </div>
-                {/* Department or Program */}
                 <div className="flex items-start gap-2 text-sm text-gray-600">
                   <Book size={16} className="mt-0.5 text-gray-400 shrink-0" />
                   <span className="line-clamp-2">
@@ -413,7 +380,11 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
             
             <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex flex-wrap gap-2">
               {school.tags.map(tag => (
-                <span key={tag} className="text-xs text-gray-500 bg-white border border-gray-200 px-2 py-1 rounded">
+                <span 
+                  key={tag} 
+                  onClick={(e) => handleTagClick(e, tag)}
+                  className="text-xs text-gray-500 bg-white border border-gray-200 px-2 py-1 rounded hover:border-[#FF4B7D] hover:text-[#FF4B7D] transition-colors"
+                >
                   #{tag}
                 </span>
               ))}
@@ -457,8 +428,14 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
 
       {/* --- Modal --- */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[85vh] shadow-2xl flex flex-col animate-in fade-in zoom-in duration-200">
+        <div 
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
+          onMouseDown={() => setIsModalOpen(false)} // Close when clicking backdrop
+        >
+          <div 
+            className="bg-white rounded-2xl w-full max-w-3xl max-h-[85vh] shadow-2xl flex flex-col animate-in fade-in zoom-in duration-200"
+            onMouseDown={(e) => e.stopPropagation()} // Prevent closing when clicking inside
+          >
             {/* Modal Header */}
             <div className="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10 rounded-t-2xl">
               <h3 className="text-xl font-bold text-gray-800">
@@ -484,7 +461,6 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
             {/* Modal Body */}
             <div className="p-8 space-y-6 overflow-y-auto custom-scrollbar">
               {modalMode === 'VIEW' && currentSchool ? (
-                // VIEW MODE
                 <div className="space-y-8">
                    <div className="flex justify-between items-start gap-4">
                      <div className="flex-1">
@@ -504,13 +480,12 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
                              <span>合作校</span>
                            </div>
                         )}
-                        <span className="px-3 py-1.5 bg-[#FF4B7D]/10 text-[#FF4B7D] border border-[#FF4B7D]/20 rounded-full text-sm font-semibold">
+                        <span className={`px-3 py-1.5 border rounded-full text-xs font-bold uppercase tracking-widest ${getTypeStyle(currentSchool.type)}`}>
                           {currentSchool.type}
                         </span>
                      </div>
                    </div>
 
-                   {/* Rankings Section */}
                    {(currentSchool.qsRanking || currentSchool.usNewsRanking) && (
                       <div className="flex gap-4">
                         {currentSchool.qsRanking && (
@@ -524,6 +499,16 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
                           </div>
                         )}
                       </div>
+                   )}
+
+                   {/* Description moved up as per user request */}
+                   {currentSchool.description && (
+                     <div className="bg-rose-50/50 p-6 rounded-2xl border border-rose-100 text-gray-800 leading-relaxed text-base break-words whitespace-pre-wrap mt-6">
+                       <h4 className="font-bold text-[#FF4B7D] mb-3 text-xs uppercase tracking-wider flex items-center gap-2">
+                         <BookOpen size={14} /> 關於學校
+                       </h4>
+                       {currentSchool.description}
+                     </div>
                    )}
 
                    <div className="grid grid-cols-2 gap-6">
@@ -575,20 +560,16 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
                      <h4 className="font-bold text-gray-800 mb-3">標籤 Tags</h4>
                      <div className="flex flex-wrap gap-2">
                        {currentSchool.tags.map(t => (
-                         <span key={t} className="text-xs text-gray-500 bg-white border border-gray-200 px-3 py-1.5 rounded-lg font-medium">#{t}</span>
+                         <span 
+                           key={t} 
+                           onClick={(e) => handleTagClick(e, t)}
+                           className="text-xs text-gray-500 bg-white border border-gray-200 px-3 py-1.5 rounded-lg font-medium cursor-pointer hover:border-[#FF4B7D] hover:text-[#FF4B7D] transition-colors"
+                         >
+                           #{t}
+                         </span>
                        ))}
                      </div>
                    </div>
-                   
-                   {/* Description moved to bottom */}
-                   {currentSchool.description && (
-                     <div className="bg-rose-50/50 p-6 rounded-2xl border border-rose-100 text-gray-800 leading-relaxed text-base break-words whitespace-pre-wrap mt-6">
-                       <h4 className="font-bold text-[#FF4B7D] mb-3 text-xs uppercase tracking-wider flex items-center gap-2">
-                         <BookOpen size={14} /> 關於學校
-                       </h4>
-                       {currentSchool.description}
-                     </div>
-                   )}
                 </div>
               ) : (
                 // EDIT / ADD MODE
@@ -616,7 +597,6 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
                       />
                     </div>
                     
-                    {/* Department moved here */}
                     <div className="col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">科系 / 學院名稱 Department</label>
                       <input 
@@ -692,7 +672,6 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
                     </div>
                   </div>
 
-                  {/* Requirements moved here */}
                   <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
                     <p className="text-sm font-bold text-gray-700 mb-3">入學要求 Requirements</p>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -735,7 +714,6 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
                     />
                   </div>
 
-                  {/* Description moved to bottom */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">詳細介紹 Description</label>
                     <textarea 
@@ -750,7 +728,6 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools }) 
               )}
             </div>
 
-            {/* Modal Footer */}
             {(modalMode === 'EDIT' || modalMode === 'ADD') && (
               <div className="p-6 border-t border-gray-100 flex justify-end gap-3 bg-gray-50 rounded-b-2xl">
                 <button 

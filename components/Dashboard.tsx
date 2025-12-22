@@ -1,15 +1,39 @@
-
 import React from 'react';
 import { View, School, WikiArticle } from '../types';
-import { School as SchoolIcon, BookOpen, ExternalLink, ArrowRight, Target } from 'lucide-react';
+import { School as SchoolIcon, BookOpen, ExternalLink, ArrowRight, Target, Clock } from 'lucide-react';
 
 interface DashboardProps {
   schools: School[];
   wikiArticles: WikiArticle[];
   setCurrentView: (view: View) => void;
+  onNavigateSchool: (id: string) => void;
+  onNavigateWiki: (id: string) => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ schools, wikiArticles, setCurrentView }) => {
+const Dashboard: React.FC<DashboardProps> = ({ 
+  schools, 
+  wikiArticles, 
+  setCurrentView, 
+  onNavigateSchool, 
+  onNavigateWiki 
+}) => {
+  // Merge and sort recent items
+  const recentItems = [
+    ...schools.map(s => ({ ...s, itemType: 'SCHOOL' as const, date: s.updatedAt })),
+    ...wikiArticles.map(w => ({ ...w, itemType: 'WIKI' as const, date: w.lastModified }))
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+   .slice(0, 5);
+
+  const getPreviewText = (item: any) => {
+    let raw = "";
+    if (item.itemType === 'SCHOOL') {
+      raw = item.description || item.programs.join(', ') || "";
+    } else {
+      raw = item.content.replace(/<[^>]*>?/gm, '') || "";
+    }
+    return raw.slice(0, 30).trim() + (raw.length > 30 ? "..." : "");
+  };
+
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
       <div>
@@ -82,20 +106,45 @@ const Dashboard: React.FC<DashboardProps> = ({ schools, wikiArticles, setCurrent
 
       {/* Recent Updates */}
       <div>
-        <h3 className="text-lg font-bold text-gray-800 mb-4">最新更新</h3>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 divide-y divide-gray-100">
-          {schools.slice(0, 3).map((school) => (
-            <div key={school.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
-              <div className="flex items-center gap-4">
-                <div className="w-2 h-2 rounded-full bg-[#FF4B7D]"></div>
-                <div>
-                  <p className="font-medium text-gray-800 text-sm">{school.name}</p>
-                  <p className="text-xs text-gray-500">更新了 2024 秋季入學要求</p>
+        <div className="flex items-center gap-2 mb-4">
+          <Clock size={18} className="text-gray-400" />
+          <h3 className="text-lg font-bold text-gray-800">最新更新</h3>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 divide-y divide-gray-100 overflow-hidden">
+          {recentItems.length > 0 ? (
+            recentItems.map((item) => (
+              <div 
+                key={item.id} 
+                onClick={() => {
+                  if (item.itemType === 'SCHOOL') onNavigateSchool(item.id);
+                  else onNavigateWiki(item.id);
+                }}
+                className="p-4 flex items-center justify-between hover:bg-rose-50/30 transition-all cursor-pointer group"
+              >
+                <div className="flex items-center gap-4">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${item.itemType === 'SCHOOL' ? 'bg-rose-100 text-[#FF4B7D]' : 'bg-orange-100 text-orange-500'}`}>
+                    {item.itemType === 'SCHOOL' ? <SchoolIcon size={16} /> : <BookOpen size={16} />}
+                  </div>
+                  <div>
+                    <p className="font-bold text-gray-800 text-sm group-hover:text-[#FF4B7D] transition-colors">
+                      {(item as any).name || (item as any).title}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {getPreviewText(item)}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <span className="text-[10px] font-medium text-gray-400 uppercase tracking-tighter">{item.date}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded font-bold">{item.itemType === 'SCHOOL' ? '院校' : '知識庫'}</span>
                 </div>
               </div>
-              <span className="text-xs text-gray-400">{school.updatedAt}</span>
+            ))
+          ) : (
+            <div className="p-12 text-center text-gray-400">
+              目前尚無更新紀錄
             </div>
-          ))}
+          )}
         </div>
       </div>
     </div>
