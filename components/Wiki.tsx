@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { WikiArticle, WikiCategory } from '../types';
 import { CATEGORY_LABELS } from '../constants';
-import { Search, ChevronRight, FileText, Plus, Edit3, Trash2, ArrowLeft, Save, Loader2 } from 'lucide-react';
+import { Search, ChevronRight, FileText, Plus, Edit3, Trash2, ArrowLeft, Save, Loader2, X } from 'lucide-react';
 import { addWikiArticle, updateWikiArticle, deleteWikiArticle } from '../services/firebase';
 import { RichTextEditor } from './RichTextEditor';
 
@@ -16,6 +16,7 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles, initialWikiId, onCle
   const [activeCategory, setActiveCategory] = useState<WikiCategory | 'ALL'>('ALL');
   const [selectedArticle, setSelectedArticle] = useState<WikiArticle | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Editing / Creating State
   const [isEditing, setIsEditing] = useState(false);
@@ -142,6 +143,11 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles, initialWikiId, onCle
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleClearSearch = () => {
+    setSearchTerm('');
+    searchInputRef.current?.focus();
   };
 
   // --- Render Views ---
@@ -326,12 +332,21 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles, initialWikiId, onCle
               <Search className="text-gray-400" size={20} />
             </div>
             <input
+              ref={searchInputRef}
               type="text"
               placeholder="搜尋知識庫文章、合作廠商資訊..."
-              className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF4B7D] focus:border-transparent text-gray-900 shadow-sm placeholder-gray-400"
+              className="w-full pl-10 pr-10 py-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF4B7D] focus:border-transparent text-gray-900 shadow-sm placeholder-gray-400"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
+            {searchTerm && (
+              <button 
+                onClick={handleClearSearch}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#FF4B7D] transition-colors"
+              >
+                <X size={20} />
+              </button>
+            )}
           </div>
 
           <div className="space-y-4">

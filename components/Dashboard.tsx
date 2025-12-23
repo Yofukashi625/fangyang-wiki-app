@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, School, WikiArticle } from '../types';
-import { School as SchoolIcon, BookOpen, ExternalLink, ArrowRight, Target, Clock } from 'lucide-react';
+import { School as SchoolIcon, BookOpen, ExternalLink, ArrowRight, Clock } from 'lucide-react';
 
 interface DashboardProps {
   schools: School[];
@@ -60,7 +60,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div 
           onClick={() => setCurrentView(View.SCHOOLS)}
           className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer group"
@@ -72,20 +72,6 @@ const Dashboard: React.FC<DashboardProps> = ({
           <p className="text-2xl font-bold text-gray-800 mt-1">{schools.length} 所</p>
           <div className="mt-4 text-xs text-[#FF4B7D] flex items-center font-medium">
             檢視所有學校 <ExternalLink size={12} className="ml-1" />
-          </div>
-        </div>
-
-        <div 
-          onClick={() => setCurrentView(View.PLACEMENT)}
-          className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer group"
-        >
-          <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center mb-4 group-hover:bg-indigo-100 transition-colors">
-            <Target size={24} />
-          </div>
-          <h4 className="text-gray-500 text-sm font-medium">初步落點選校</h4>
-          <p className="text-lg font-bold text-gray-800 mt-1 line-clamp-1">AI 智能落點分析</p>
-          <div className="mt-5 text-xs text-indigo-600 flex items-center font-medium">
-            開始評估 <ExternalLink size={12} className="ml-1" />
           </div>
         </div>
 

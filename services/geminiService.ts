@@ -3,6 +3,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { School, Citation } from '../types';
 
 // Initialize Gemini Client
+// Always use the named parameter apiKey and get it from process.env.API_KEY
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 /**
@@ -35,8 +36,9 @@ export const parseSchoolDocument = async (fileName: string, fileContentMock: str
       If information is missing, use reasonable estimations based on the school name or leave blank/generic.
     `;
 
+    // Updated to use gemini-3-flash-preview for basic text extraction tasks
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -98,7 +100,7 @@ export const chatWithKnowledgeBase = async (
       Your users are consultants.
       
       Your Role:
-      1. Answer questions about schools, application processes (US/UK/CA/AU), terminology, and sales scripts.
+      1. Answer questions about schools, application processes (US/UK/CA/AU), terminology, sales scripts, and internal announcements.
       2. Use the provided CONTEXT strictly to answer. 
       3. If the answer is found in the CONTEXT, you MUST cite the source ID and Title.
       4. Tone: Professional, helpful, encouraging. Use Traditional Chinese (Taiwan).
@@ -117,8 +119,9 @@ export const chatWithKnowledgeBase = async (
       - confidence: "HIGH", "MEDIUM", or "LOW".
     `;
 
+    // Updated to use gemini-3-flash-preview for basic Q&A tasks
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
         systemInstruction: systemInstruction,
@@ -134,7 +137,7 @@ export const chatWithKnowledgeBase = async (
                 properties: {
                   id: { type: Type.STRING },
                   title: { type: Type.STRING },
-                  type: { type: Type.STRING, enum: ['SCHOOL', 'WIKI'] }
+                  type: { type: Type.STRING, enum: ['SCHOOL', 'WIKI', 'ANNOUNCEMENT'] }
                 }
               }
             },
@@ -158,52 +161,58 @@ export const chatWithKnowledgeBase = async (
   }
 };
 
+interface AnalysisResponse {
+  dreamIds: string[];
+  matchIds: string[];
+  safetyIds: string[];
+  reasoning: string;
+}
+
 /**
- * Analyze School Placement based on student profile and database.
+ * Fix: Export analyzeSchoolPlacement to resolve the module error.
+ * Uses gemini-3-pro-preview for complex reasoning task of matching student data to school database.
  */
 export const analyzeSchoolPlacement = async (
-  studentProfile: { gpa: string; testScores: string; major: string; preferences: string },
+  formData: { gpa: string; testScores: string; major: string; preferences: string },
   schools: School[],
-  schoolCount: number = 3
-): Promise<{ dream: School[], match: School[], safety: School[], reasoning: string }> => {
+  schoolCount: number
+): Promise<{ dream: School[]; match: School[]; safety: School[]; reasoning: string }> => {
   try {
-    const schoolContext = schools.map(s => ({
-      id: s.id,
-      name: s.name,
-      qs: s.qsRanking,
-      usnews: s.usNewsRanking,
-      reqs: s.requirements,
-      programs: s.programs
-    }));
+    const schoolsContext = schools.map(s => 
+      `[ID: ${s.id}] Name: ${s.name}, Rankings: QS ${s.qsRanking || 'N/A'} / US News ${s.usNewsRanking || 'N/A'}, Req: ${JSON.stringify(s.requirements)}, Description: ${s.description}`
+    ).join('\n');
 
     const prompt = `
-      Student Profile:
-      - GPA: ${studentProfile.gpa}
-      - Tests: ${studentProfile.testScores}
-      - Target Major: ${studentProfile.major}
-      - Prefs: ${studentProfile.preferences}
+      You are an expert study abroad consultant at "FangYang Nexus".
+      Your task is to analyze a student's profile and recommend schools from our database.
 
-      Available Schools Database:
-      ${JSON.stringify(schoolContext)}
+      STUDENT PROFILE:
+      - GPA: ${formData.gpa}
+      - Test Scores: ${formData.testScores}
+      - Target Major: ${formData.major}
+      - Preferences: ${formData.preferences}
 
-      Task:
-      Select EXACTLY ${schoolCount} schools from the database that fit the student.
-      Categorize them into 3 lists: Dream (Reach), Match (Target), Safety (Likely).
-      
-      Rules:
-      1. The total number of schools across dreamIds, matchIds, and safetyIds MUST be exactly ${schoolCount}.
-      2. Only pick schools that actually exist in the provided database.
-      3. Distribute them logically based on the student profile.
-      
-      Return JSON with:
-      - dreamIds: Array of school IDs
-      - matchIds: Array of school IDs
-      - safetyIds: Array of school IDs
-      - reasoning: A brief analysis in Traditional Chinese explaining the strategy.
+      SCHOOL DATABASE:
+      ${schoolsContext}
+
+      GOAL:
+      Select exactly ${schoolCount} schools from the database and categorize them into:
+      - Dream (衝刺): Schools slightly above the student's profile or high ranking.
+      - Match (合適): Schools that match the student's profile well.
+      - Safety (保底): Schools where the student has a very high chance of admission.
+
+      Return a JSON object with:
+      - dreamIds: Array of school IDs selected for Dream category.
+      - matchIds: Array of school IDs selected for Match category.
+      - safetyIds: Array of school IDs selected for Safety category.
+      - reasoning: A detailed explanation in Traditional Chinese (Taiwan) explaining why these schools were chosen and how they fit the student's preferences.
+
+      Important: ONLY use IDs from the provided SCHOOL DATABASE.
     `;
 
+    // Use gemini-3-pro-preview for advanced reasoning and matching
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: 'gemini-3-pro-preview',
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -219,17 +228,22 @@ export const analyzeSchoolPlacement = async (
       }
     });
 
-    const result = JSON.parse(response.text || '{}');
+    const text = response.text;
+    if (!text) throw new Error("Empty analysis response");
+
+    const analysis = JSON.parse(text) as AnalysisResponse;
+
+    const findSchool = (id: string) => schools.find(s => s.id === id);
     
     return {
-      dream: schools.filter(s => result.dreamIds?.includes(s.id)),
-      match: schools.filter(s => result.matchIds?.includes(s.id)),
-      safety: schools.filter(s => result.safetyIds?.includes(s.id)),
-      reasoning: result.reasoning || "無法產生分析報告。"
+      dream: (analysis.dreamIds || []).map(id => findSchool(id)).filter((s): s is School => !!s),
+      match: (analysis.matchIds || []).map(id => findSchool(id)).filter((s): s is School => !!s),
+      safety: (analysis.safetyIds || []).map(id => findSchool(id)).filter((s): s is School => !!s),
+      reasoning: analysis.reasoning
     };
 
   } catch (error) {
-    console.error("Placement Analysis Error:", error);
+    console.error("Gemini Analysis Error:", error);
     throw error;
   }
-}
+};

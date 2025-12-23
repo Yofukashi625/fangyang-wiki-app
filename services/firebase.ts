@@ -1,4 +1,3 @@
-
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { 
@@ -12,9 +11,8 @@ import {
   query, 
   orderBy 
 } from "firebase/firestore";
-import { WikiArticle, School, OnboardingTask } from "../types";
+import { WikiArticle, School, OnboardingTask, Announcement } from "../types";
 
-// Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyDYEwm_vPBGz7xpreva-YT8lpfD3pjmsH8",
   authDomain: "fangyang-nexus.firebaseapp.com",
@@ -25,15 +23,60 @@ const firebaseConfig = {
   measurementId: "G-MNXY4XXYHR"
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 const db = getFirestore(app);
 
-// --- Collections ---
 const WIKI_COLLECTION = "wiki_articles";
 const SCHOOLS_COLLECTION = "schools";
 const ONBOARDING_COLLECTION = "onboarding_tasks";
+const ANNOUNCEMENTS_COLLECTION = "announcements";
+
+// --- Announcement Services ---
+
+export const getAnnouncements = async (): Promise<Announcement[]> => {
+  try {
+    const q = query(collection(db, ANNOUNCEMENTS_COLLECTION), orderBy("date", "desc"));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as Announcement));
+  } catch (error) {
+    console.error("Error fetching announcements:", error);
+    return [];
+  }
+};
+
+export const addAnnouncement = async (announcement: Omit<Announcement, 'id'>): Promise<string> => {
+  try {
+    const docRef = await addDoc(collection(db, ANNOUNCEMENTS_COLLECTION), announcement);
+    return docRef.id;
+  } catch (error) {
+    console.error("Error adding announcement:", error);
+    throw error;
+  }
+};
+
+export const updateAnnouncement = async (id: string, updates: Partial<Announcement>): Promise<void> => {
+  try {
+    const docRef = doc(db, ANNOUNCEMENTS_COLLECTION, id);
+    const { id: _, ...dataToUpdate } = updates;
+    await updateDoc(docRef, dataToUpdate);
+  } catch (error) {
+    console.error("Error updating announcement:", error);
+    throw error;
+  }
+};
+
+export const deleteAnnouncement = async (id: string): Promise<void> => {
+  try {
+    await deleteDoc(doc(db, ANNOUNCEMENTS_COLLECTION, id));
+  } catch (error) {
+    console.error("Error deleting announcement:", error);
+    throw error;
+  }
+};
 
 // --- Wiki Services ---
 
@@ -85,7 +128,6 @@ export const deleteWikiArticle = async (id: string): Promise<void> => {
 
 export const getSchools = async (): Promise<School[]> => {
   try {
-    // Order schools by updatedAt descending
     const q = query(collection(db, SCHOOLS_COLLECTION), orderBy("updatedAt", "desc"));
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({
@@ -132,7 +174,6 @@ export const deleteSchool = async (id: string): Promise<void> => {
 
 export const getOnboardingTasks = async (): Promise<OnboardingTask[]> => {
   try {
-    // Order by day ascending
     const q = query(collection(db, ONBOARDING_COLLECTION), orderBy("day", "asc"));
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({

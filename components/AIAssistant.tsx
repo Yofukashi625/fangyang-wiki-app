@@ -1,29 +1,36 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { ChatMessage, WikiArticle, School, Citation } from '../types';
+import { ChatMessage, WikiArticle, School, Citation, Announcement } from '../types';
 import { chatWithKnowledgeBase } from '../services/geminiService';
-import { Send, Bot, User as UserIcon, Loader2, Sparkles, BookOpen, School as SchoolIcon, ThumbsUp, ThumbsDown, AlertCircle, HelpCircle, X, MapPin, DollarSign, Book } from 'lucide-react';
+import { Send, Bot, User as UserIcon, Loader2, Sparkles, BookOpen, School as SchoolIcon, Bell, ThumbsUp, ThumbsDown, AlertCircle, HelpCircle, X, MapPin, DollarSign, Book } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 interface AIAssistantProps {
   wikiArticles: WikiArticle[];
   schools: School[];
+  announcements: Announcement[];
 }
 
 const SUGGESTED_QUESTIONS = [
+  "最近有什麼重要的合作廠商資訊或規則異動？",
   "什麼是 STEM OPT？申請資格為何？",
   "如何回答家長覺得代辦費太貴的問題？",
   "University of Washington 的入學要求是什麼？",
-  "英國 ATAS 認證需要準備什麼文件？",
 ];
 
-const AIAssistant: React.FC<AIAssistantProps> = ({ wikiArticles, schools }) => {
+const CATEGORY_LABELS: Record<string, string> = {
+  PARTNER: '合作廠商資訊',
+  INTERNAL: '公司內部公告',
+  RULES: '申請規則異動',
+  ACTIVITIES: '放洋最新活動'
+};
+
+const AIAssistant: React.FC<AIAssistantProps> = ({ wikiArticles, schools, announcements }) => {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',
       role: 'model',
-      text: '你好！我是 FangYang Nexus 智能助教。\n我可以協助你查詢學校資料、解釋專有名詞（如 ATAS, STEM）或是提供銷售話術建議。\n\n請直接提問，或選擇下方的常見問題。',
+      text: '你好！我是 FangYang Nexus 智能助教。\n我可以協助你查詢學校資料、解釋專有名詞（如 ATAS, STEM）、提供銷售話術建議，或是查詢最新的公司公告與規則異動。\n\n請直接提問，或選擇下方的常見問題。',
       timestamp: new Date(),
       confidence: 'HIGH'
     }
@@ -31,7 +38,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ wikiArticles, schools }) => {
   const [isLoading, setIsLoading] = useState(false);
   
   // Citation Preview State
-  const [previewItem, setPreviewItem] = useState<{ type: 'SCHOOL' | 'WIKI', data: School | WikiArticle } | null>(null);
+  const [previewItem, setPreviewItem] = useState<{ type: 'SCHOOL' | 'WIKI' | 'ANNOUNCEMENT', data: School | WikiArticle | Announcement } | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -66,12 +73,19 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ wikiArticles, schools }) => {
       `[ID: ${w.id}, Type: WIKI] Title: ${w.title}, Category: ${w.category}, Content: ${w.content.replace(/\n+/g, ' ')}`
     ).join('\n');
 
+    const announcementContext = announcements.map(a => 
+      `[ID: ${a.id}, Type: ANNOUNCEMENT] Title: ${a.title}, Category: ${a.category}, Date: ${a.date}, Content: ${a.content.replace(/<[^>]*>?/gm, ' ')}`
+    ).join('\n');
+
     const fullContext = `
       === SCHOOL DATABASE ===
       ${schoolContext}
 
       === WIKI ARTICLES ===
       ${wikiContext}
+
+      === LATEST ANNOUNCEMENTS ===
+      ${announcementContext}
     `;
 
     try {
@@ -100,8 +114,6 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ wikiArticles, schools }) => {
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    // Check if the user is composing via IME (e.g., Chinese input)
-    // If composing, we do NOT want to send the message on Enter
     if (e.key === 'Enter' && !e.shiftKey && !(e.nativeEvent as any).isComposing) {
       e.preventDefault();
       handleSend();
@@ -116,17 +128,23 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ wikiArticles, schools }) => {
 
   const handleCitationClick = (citation: Citation) => {
     if (citation.type === 'SCHOOL') {
-      // Find school by ID, or fallback to fuzzy name match if ID fails (though ID should work)
       const school = schools.find(s => s.id === citation.id) || schools.find(s => s.name === citation.title);
       if (school) {
         setPreviewItem({ type: 'SCHOOL', data: school });
       } else {
         alert("找不到原始資料 (可能已被刪除)");
       }
-    } else {
+    } else if (citation.type === 'WIKI') {
       const wiki = wikiArticles.find(w => w.id === citation.id) || wikiArticles.find(w => w.title === citation.title);
       if (wiki) {
         setPreviewItem({ type: 'WIKI', data: wiki });
+      } else {
+        alert("找不到原始資料 (可能已被刪除)");
+      }
+    } else if (citation.type === 'ANNOUNCEMENT') {
+      const announcement = announcements.find(a => a.id === citation.id) || announcements.find(a => a.title === citation.title);
+      if (announcement) {
+        setPreviewItem({ type: 'ANNOUNCEMENT', data: announcement });
       } else {
         alert("找不到原始資料 (可能已被刪除)");
       }
@@ -201,10 +219,8 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ wikiArticles, schools }) => {
                     </ReactMarkdown>
                   </div>
 
-                  {/* AI Message Footer: Sources & Confidence */}
                   {!isUser && (
                     <div className="flex flex-col gap-2 w-full">
-                      {/* Sources */}
                       {msg.sources && msg.sources.length > 0 && (
                         <div className="flex flex-wrap gap-2 mt-1">
                           {msg.sources.map((source, idx) => (
@@ -213,7 +229,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ wikiArticles, schools }) => {
                               onClick={() => handleCitationClick(source)}
                               className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-600 hover:border-[#FF4B7D] hover:text-[#FF4B7D] hover:shadow-md transition-all cursor-pointer shadow-sm group"
                             >
-                              {source.type === 'SCHOOL' ? <SchoolIcon size={12} /> : <BookOpen size={12} />}
+                              {source.type === 'SCHOOL' ? <SchoolIcon size={12} /> : source.type === 'WIKI' ? <BookOpen size={12} /> : <Bell size={12} />}
                               <span className="font-medium max-w-[150px] truncate">{source.title}</span>
                               <div className="w-1.5 h-1.5 bg-[#FF4B7D] rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
                             </div>
@@ -221,7 +237,6 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ wikiArticles, schools }) => {
                         </div>
                       )}
 
-                      {/* Meta: Timestamp, Confidence, Feedback */}
                       <div className="flex items-center justify-between px-1 w-full">
                         <div className="flex items-center gap-3">
                           <span className="text-[10px] text-gray-400">
@@ -270,24 +285,6 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ wikiArticles, schools }) => {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Suggested Questions */}
-        {messages.length <= 1 && (
-          <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 overflow-x-auto">
-            <p className="text-xs font-semibold text-gray-400 mb-3 uppercase tracking-wider">建議提問</p>
-            <div className="flex gap-3">
-              {SUGGESTED_QUESTIONS.map((q, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => handleSend(q)}
-                  className="flex-shrink-0 px-4 py-2 bg-white border border-gray-200 hover:border-[#FF4B7D] hover:text-[#FF4B7D] text-gray-600 text-sm rounded-full transition-all shadow-sm whitespace-nowrap"
-                >
-                  {q}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Input Area */}
         <div className="p-4 bg-white border-t border-gray-100">
           <div className="relative flex items-end gap-2 p-2 border border-gray-200 rounded-xl focus-within:ring-2 focus-within:ring-[#FF4B7D] focus-within:border-[#FF4B7D] transition-all bg-white shadow-sm">
@@ -308,7 +305,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ wikiArticles, schools }) => {
             </button>
           </div>
           <p className="text-[10px] text-center text-gray-400 mt-2">
-            AI 回答僅供參考，重要合約資訊請務必再次核對 <span className="underline cursor-pointer hover:text-gray-600">Wiki 合約專區</span>。
+            AI 回答僅供參考，重要公告資訊請務必再次核對 <span className="underline cursor-pointer hover:text-gray-600">最新公告專區</span>。
           </p>
         </div>
       </div>
@@ -319,8 +316,8 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ wikiArticles, schools }) => {
           <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[85vh] shadow-2xl flex flex-col overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
               <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                {previewItem.type === 'SCHOOL' ? <SchoolIcon size={20} className="text-[#FF4B7D]"/> : <BookOpen size={20} className="text-[#FF4B7D]"/>}
-                {previewItem.type === 'SCHOOL' ? '學校資料預覽' : '知識庫預覽'}
+                {previewItem.type === 'SCHOOL' ? <SchoolIcon size={20} className="text-[#FF4B7D]"/> : previewItem.type === 'WIKI' ? <BookOpen size={20} className="text-[#FF4B7D]"/> : <Bell size={20} className="text-[#FF4B7D]"/>}
+                {previewItem.type === 'SCHOOL' ? '學校資料預覽' : previewItem.type === 'WIKI' ? '知識庫預覽' : '公告預覽'}
               </h3>
               <button 
                 onClick={() => setPreviewItem(null)}
@@ -332,7 +329,6 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ wikiArticles, schools }) => {
             
             <div className="p-8 overflow-y-auto custom-scrollbar bg-white">
               {previewItem.type === 'SCHOOL' ? (
-                // SCHOOL PREVIEW
                 <div className="space-y-6">
                   {(() => {
                     const s = previewItem.data as School;
@@ -344,33 +340,21 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ wikiArticles, schools }) => {
                              <MapPin size={16} className="mr-1" /> {s.location}, {s.country}
                           </div>
                         </div>
-                        
                         <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                           <p className="text-sm text-gray-500 mb-1 flex items-center gap-1"><DollarSign size={14}/> Tuition</p>
                           <p className="font-bold text-gray-900">{s.tuitionRange}</p>
                         </div>
-
                         {s.description && (
                           <div className="prose prose-sm prose-slate max-w-none">
                             <h4 className="font-bold text-gray-900">About</h4>
                             <p>{s.description}</p>
                           </div>
                         )}
-
-                        <div>
-                          <h4 className="font-bold text-gray-900 mb-2 flex items-center gap-1"><Book size={16}/> Programs</h4>
-                          <div className="flex flex-wrap gap-2">
-                            {s.programs.map(p => (
-                              <span key={p} className="px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-medium border border-indigo-100">{p}</span>
-                            ))}
-                          </div>
-                        </div>
                       </>
                     );
                   })()}
                 </div>
-              ) : (
-                // WIKI PREVIEW
+              ) : previewItem.type === 'WIKI' ? (
                 <div className="prose prose-slate max-w-none">
                    {(() => {
                      const w = previewItem.data as WikiArticle;
@@ -379,6 +363,22 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ wikiArticles, schools }) => {
                          <h1 className="text-2xl font-bold text-gray-900 mb-2">{w.title}</h1>
                          <div className="text-xs text-gray-400 mb-6">Last Updated: {w.lastModified}</div>
                          <ReactMarkdown>{w.content}</ReactMarkdown>
+                       </>
+                     );
+                   })()}
+                </div>
+              ) : (
+                <div className="prose prose-slate max-w-none">
+                   {(() => {
+                     const a = previewItem.data as Announcement;
+                     return (
+                       <>
+                         <span className="px-3 py-1 bg-blue-50 text-blue-600 text-xs font-bold rounded-full border border-blue-100 mb-4 inline-block">
+                           {CATEGORY_LABELS[a.category] || a.category}
+                         </span>
+                         <h1 className="text-2xl font-bold text-gray-900 mb-2">{a.title}</h1>
+                         <div className="text-xs text-gray-400 mb-6">發佈日期: {a.date}</div>
+                         <div dangerouslySetInnerHTML={{ __html: a.content }} />
                        </>
                      );
                    })()}

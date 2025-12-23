@@ -1,11 +1,11 @@
-
 export enum View {
   DASHBOARD = 'DASHBOARD',
+  ANNOUNCEMENTS = 'ANNOUNCEMENTS',
   SCHOOLS = 'SCHOOLS',
   WIKI = 'WIKI',
   AI_CHAT = 'AI_CHAT',
   ONBOARDING = 'ONBOARDING',
-  PLACEMENT = 'PLACEMENT',
+  RECOMMENDATION_GENERATOR = 'RECOMMENDATION_GENERATOR',
   SETTINGS = 'SETTINGS'
 }
 
@@ -15,11 +15,11 @@ export interface School {
   location: string;
   country: string;
   type: 'Graduate School' | 'University' | 'High School' | 'Language School';
-  programs: string[]; // General popular programs
-  department?: string; // Specific department or faculty focus
+  programs: string[]; 
+  department?: string; 
   qsRanking?: number;
   usNewsRanking?: number;
-  tuitionRange: string; // e.g., "$30,000 - $45,000"
+  tuitionRange: string; 
   requirements: {
     gpa?: string;
     toefl?: string;
@@ -27,34 +27,51 @@ export interface School {
     sat?: string;
     other?: string;
   };
-  tags: string[]; // e.g., "STEM", "Downtown", "Co-op"
-  description?: string; // Full text description, hidden in card view
-  isPartner?: boolean; // If true, show badge on card
+  tags: string[]; 
+  description?: string; 
+  isPartner?: boolean; 
   updatedAt: string;
 }
 
 export enum WikiCategory {
-  PROCESS = 'PROCESS', // 申請流程
-  FAQ = 'FAQ', // 常見 Q&A
-  GLOSSARY = 'GLOSSARY', // 專有名詞
-  SALES = 'SALES', // 銷售話術
-  CONTRACT = 'CONTRACT', // 合約條款
-  PARTNER = 'PARTNER' // 合作廠商資訊
+  PROCESS = 'PROCESS', 
+  FAQ = 'FAQ', 
+  GLOSSARY = 'GLOSSARY', 
+  SALES = 'SALES', 
+  CONTRACT = 'CONTRACT', 
+  PARTNER = 'PARTNER' 
 }
 
 export interface WikiArticle {
   id: string;
   title: string;
   category: WikiCategory;
-  content: string; // Markdown supported
+  content: string; 
   tags: string[];
   lastModified: string;
+}
+
+export enum AnnouncementCategory {
+  PARTNER = 'PARTNER', // 合作廠商資訊
+  INTERNAL = 'INTERNAL', // 公司內部公告
+  RULES = 'RULES', // 申請規則異動
+  ACTIVITIES = 'ACTIVITIES' // 放洋最新活動
+}
+
+export interface Announcement {
+  id: string;
+  title: string;
+  category: AnnouncementCategory;
+  content: string;
+  author?: string;
+  date: string;
+  imageUrl?: string;
 }
 
 export interface Citation {
   id: string;
   title: string;
-  type: 'SCHOOL' | 'WIKI';
+  type: 'SCHOOL' | 'WIKI' | 'ANNOUNCEMENT';
 }
 
 export interface ChatMessage {
@@ -69,8 +86,8 @@ export interface ChatMessage {
 
 export interface OnboardingTask {
   id: string;
-  day: number; // 1 to 10+
+  day: number; 
   title: string;
-  description: string; // Markdown supported content
-  isCompleted?: boolean; // Local state for user tracking
+  description: string; 
+  isCompleted?: boolean; 
 }

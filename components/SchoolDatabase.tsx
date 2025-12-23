@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { School } from '../types';
 import { Search, Filter, MapPin, DollarSign, Book, Loader2, School as SchoolIcon, Plus, X, Trash2, Edit2, Save, GraduationCap, CheckCircle, ChevronLeft, ChevronRight, BookOpen, Trophy } from 'lucide-react';
 import { addSchool, updateSchool, deleteSchool } from '../services/firebase';
@@ -16,6 +16,7 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools, in
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCountry, setFilterCountry] = useState('All');
   const [currentPage, setCurrentPage] = useState(1);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   
   // Score Filtering State
   const [scoreFilterType, setScoreFilterType] = useState<'GPA' | 'TOEFL' | 'IELTS' | ''>('');
@@ -210,6 +211,11 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools, in
     setSearchTerm(tag);
   };
 
+  const handleClearSearch = () => {
+    setSearchTerm('');
+    searchInputRef.current?.focus();
+  };
+
   // --- Render Helpers ---
 
   const filteredSchools = schools.filter(school => {
@@ -256,12 +262,21 @@ const SchoolDatabase: React.FC<SchoolDatabaseProps> = ({ schools, setSchools, in
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
           <input
+            ref={searchInputRef}
             type="text"
             placeholder="搜尋學校名稱、標籤、詳細介紹..."
-            className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF4B7D] text-sm text-gray-900 placeholder-gray-400"
+            className="w-full pl-10 pr-10 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF4B7D] text-sm text-gray-900 placeholder-gray-400"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
+          {searchTerm && (
+            <button 
+              onClick={handleClearSearch}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#FF4B7D] transition-colors"
+            >
+              <X size={16} />
+            </button>
+          )}
         </div>
         
         <div className="flex flex-wrap items-center gap-2">

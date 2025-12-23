@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, School, WikiArticle, OnboardingTask } from './types';
-import { INITIAL_SCHOOLS, INITIAL_ONBOARDING_DATA } from './constants';
+import { View, School, WikiArticle, OnboardingTask, Announcement } from './types';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import SchoolDatabase from './components/SchoolDatabase';
 import Wiki from './components/Wiki';
 import AIAssistant from './components/AIAssistant';
 import Onboarding from './components/Onboarding';
-import SchoolPlacement from './components/SchoolPlacement';
-import { getWikiArticles, getSchools, getOnboardingTasks } from './services/firebase';
+import Announcements from './components/Announcements';
+import RecommendationGenerator from './components/RecommendationGenerator';
+import { getWikiArticles, getSchools, getOnboardingTasks, getAnnouncements } from './services/firebase';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>(View.DASHBOARD);
@@ -21,20 +21,23 @@ const App: React.FC = () => {
   const [schools, setSchools] = useState<School[]>([]);
   const [wikiArticles, setWikiArticles] = useState<WikiArticle[]>([]); 
   const [onboardingTasks, setOnboardingTasks] = useState<OnboardingTask[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
 
   // Load All Data from Firebase
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [wikiData, schoolData, taskData] = await Promise.all([
+        const [wikiData, schoolData, taskData, announcementData] = await Promise.all([
           getWikiArticles(),
           getSchools(),
-          getOnboardingTasks()
+          getOnboardingTasks(),
+          getAnnouncements()
         ]);
 
         setWikiArticles(wikiData);
         setSchools(schoolData.length > 0 ? schoolData : []);
         setOnboardingTasks(taskData.length > 0 ? taskData : []);
+        setAnnouncements(announcementData.length > 0 ? announcementData : []);
       } catch (e) {
         console.error("Failed to load data", e);
       }
@@ -64,6 +67,13 @@ const App: React.FC = () => {
             onNavigateWiki={handleNavigateToWiki}
           />
         );
+      case View.ANNOUNCEMENTS:
+        return (
+          <Announcements 
+            announcements={announcements} 
+            setAnnouncements={setAnnouncements} 
+          />
+        );
       case View.SCHOOLS:
         return (
           <SchoolDatabase 
@@ -84,10 +94,10 @@ const App: React.FC = () => {
         );
       case View.ONBOARDING:
         return <Onboarding tasks={onboardingTasks} setTasks={setOnboardingTasks} />;
-      case View.PLACEMENT:
-        return <SchoolPlacement schools={schools} />;
+      case View.RECOMMENDATION_GENERATOR:
+        return <RecommendationGenerator />;
       case View.AI_CHAT:
-        return <AIAssistant wikiArticles={wikiArticles} schools={schools} />;
+        return <AIAssistant wikiArticles={wikiArticles} schools={schools} announcements={announcements} />;
       case View.SETTINGS:
         return (
           <div className="p-8 text-center text-gray-500">
