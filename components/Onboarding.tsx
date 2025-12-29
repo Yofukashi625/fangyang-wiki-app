@@ -1,6 +1,7 @@
+
 import React, { useState } from 'react';
 import { OnboardingTask } from '../types';
-import { Plus, Edit2, Trash2, Calendar, Save, X, Eye, Loader2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, Calendar, Save, X, Eye, Loader2, Users, ClipboardList, ArrowLeft } from 'lucide-react';
 import { addOnboardingTask, updateOnboardingTask, deleteOnboardingTask } from '../services/firebase';
 import { RichTextEditor } from './RichTextEditor';
 
@@ -9,7 +10,10 @@ interface OnboardingProps {
   setTasks: React.Dispatch<React.SetStateAction<OnboardingTask[]>>;
 }
 
+type RoleType = 'SALES' | 'ADMIN';
+
 const Onboarding: React.FC<OnboardingProps> = ({ tasks, setTasks }) => {
+  const [selectedRole, setSelectedRole] = useState<RoleType | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'VIEW' | 'EDIT' | 'ADD'>('VIEW');
   const [editForm, setEditForm] = useState<Partial<OnboardingTask>>({});
@@ -18,13 +22,17 @@ const Onboarding: React.FC<OnboardingProps> = ({ tasks, setTasks }) => {
   // Generate fixed slots for Day 1 to Day 10
   const days = Array.from({ length: 10 }, (_, i) => i + 1);
 
+  // Filter tasks based on selected role
+  const roleFilteredTasks = tasks.filter(t => t.role === selectedRole);
+
   // --- Actions ---
 
   const handleStartAdd = (day: number) => {
     setEditForm({
       day: day,
       title: '',
-      description: '' 
+      description: '',
+      role: selectedRole || 'SALES'
     });
     setModalMode('ADD');
     setIsModalOpen(true);
@@ -68,7 +76,8 @@ const Onboarding: React.FC<OnboardingProps> = ({ tasks, setTasks }) => {
         const updates: Partial<OnboardingTask> = {
           day: editForm.day,
           title: editForm.title,
-          description: editForm.description || ''
+          description: editForm.description || '',
+          role: selectedRole || 'SALES'
         };
         
         await updateOnboardingTask(editForm.id, updates);
@@ -78,6 +87,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ tasks, setTasks }) => {
           day: editForm.day!,
           title: editForm.title!,
           description: editForm.description || '',
+          role: selectedRole || 'SALES'
         };
 
         const newId = await addOnboardingTask(newTaskData);
@@ -92,16 +102,67 @@ const Onboarding: React.FC<OnboardingProps> = ({ tasks, setTasks }) => {
     }
   };
 
+  // Role Selection View
+  if (!selectedRole) {
+    return (
+      <div className="p-8 max-w-7xl mx-auto h-[80vh] flex flex-col items-center justify-center animate-in fade-in duration-500">
+        <h2 className="text-3xl font-bold text-gray-800 mb-2">歡迎進入新人培訓系統</h2>
+        <p className="text-gray-500 mb-12">請選擇您的職務身份，以開始對應的培訓課程</p>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl">
+          <button 
+            onClick={() => setSelectedRole('SALES')}
+            className="bg-white p-12 rounded-[2.5rem] border-2 border-transparent hover:border-[#FF4B7D] shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all group flex flex-col items-center gap-6"
+          >
+            <div className="w-24 h-24 bg-rose-50 rounded-3xl flex items-center justify-center text-[#FF4B7D] group-hover:scale-110 group-hover:bg-rose-100 transition-all duration-300">
+               <Users size={48} />
+            </div>
+            <div className="text-center">
+              <h3 className="text-2xl font-bold text-gray-800 mb-2">前端招生顧問</h3>
+              <p className="text-sm text-gray-400 font-medium tracking-wide uppercase">Sales Consultant</p>
+            </div>
+          </button>
+
+          <button 
+            onClick={() => setSelectedRole('ADMIN')}
+            className="bg-white p-12 rounded-[2.5rem] border-2 border-transparent hover:border-blue-500 shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all group flex flex-col items-center gap-6"
+          >
+            <div className="w-24 h-24 bg-blue-50 rounded-3xl flex items-center justify-center text-blue-500 group-hover:scale-110 group-hover:bg-blue-100 transition-all duration-300">
+               <ClipboardList size={48} />
+            </div>
+            <div className="text-center">
+              <h3 className="text-2xl font-bold text-gray-800 mb-2">後端行政顧問</h3>
+              <p className="text-sm text-gray-400 font-medium tracking-wide uppercase">Admin Consultant</p>
+            </div>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-8 max-w-7xl mx-auto">
-      <div className="mb-10">
-        <h2 className="text-3xl font-bold text-gray-800">新人培訓計畫</h2>
-        <p className="text-gray-500 mt-2">Day 01 - Day 10 培訓任務總覽</p>
+    <div className="p-8 max-w-7xl mx-auto animate-in fade-in duration-500">
+      <div className="mb-10 flex justify-between items-end">
+        <div>
+          <button 
+            onClick={() => setSelectedRole(null)}
+            className="flex items-center gap-1 text-sm text-gray-400 hover:text-[#FF4B7D] mb-4 transition-colors"
+          >
+            <ArrowLeft size={16} /> 更換身份
+          </button>
+          <h2 className="text-3xl font-bold text-gray-800">
+            {selectedRole === 'SALES' ? '前端招生顧問' : '後端行政顧問'} 培訓計畫
+          </h2>
+          <p className="text-gray-500 mt-2">Day 01 - Day 10 專屬職務培訓任務總覽</p>
+        </div>
+        <div className={`px-4 py-2 rounded-full font-bold text-xs uppercase tracking-widest ${selectedRole === 'SALES' ? 'bg-rose-50 text-[#FF4B7D]' : 'bg-blue-50 text-blue-500'}`}>
+          {selectedRole === 'SALES' ? 'Sales Track' : 'Admin Track'}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         {days.map((day) => {
-          const task = tasks.find(t => t.day === day);
+          const task = roleFilteredTasks.find(t => t.day === day);
           
           return (
             <div 
@@ -119,9 +180,9 @@ const Onboarding: React.FC<OnboardingProps> = ({ tasks, setTasks }) => {
             >
               {task ? (
                 <>
-                  <div className="p-4 border-b border-gray-100 flex justify-between items-start bg-[#FF4B7D]/5 rounded-t-2xl">
+                  <div className={`p-4 border-b border-gray-100 flex justify-between items-start rounded-t-2xl ${selectedRole === 'SALES' ? 'bg-rose-50/30' : 'bg-blue-50/30'}`}>
                     <div>
-                       <span className="text-xs font-bold text-[#FF4B7D] uppercase tracking-wider block mb-1">
+                       <span className={`text-[10px] font-black uppercase tracking-wider block mb-1 ${selectedRole === 'SALES' ? 'text-[#FF4B7D]' : 'text-blue-500'}`}>
                          Day {day.toString().padStart(2, '0')}
                        </span>
                        <h3 className="font-bold text-gray-800 leading-tight line-clamp-2">{task.title}</h3>
@@ -129,7 +190,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ tasks, setTasks }) => {
                   </div>
                   
                   <div className="p-4 flex-1 overflow-hidden relative">
-                    <div className="text-xs text-gray-500 line-clamp-6 prose prose-xs">
+                    <div className="text-xs text-gray-500 line-clamp-6 prose prose-xs prose-slate">
                       {task.description.replace(/<[^>]*>?/gm, '')}
                     </div>
                     <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white to-transparent pointer-events-none"></div>

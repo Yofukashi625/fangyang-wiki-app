@@ -1,37 +1,46 @@
 import React from 'react';
-import { View, School, WikiArticle } from '../types';
-import { School as SchoolIcon, BookOpen, ExternalLink, ArrowRight, Clock } from 'lucide-react';
+import { View, School, WikiArticle, Announcement } from '../types';
+import { School as SchoolIcon, BookOpen, ExternalLink, ArrowRight, Clock, Bell } from 'lucide-react';
 
 interface DashboardProps {
   schools: School[];
   wikiArticles: WikiArticle[];
+  announcements: Announcement[];
   setCurrentView: (view: View) => void;
   onNavigateSchool: (id: string) => void;
   onNavigateWiki: (id: string) => void;
+  onNavigateAnnouncement?: (id: string) => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
   schools, 
   wikiArticles, 
+  announcements,
   setCurrentView, 
   onNavigateSchool, 
-  onNavigateWiki 
+  onNavigateWiki,
+  onNavigateAnnouncement
 }) => {
-  // Merge and sort recent items
+  // Merge all types and sort strictly by date (descending) to ensure interspersion
   const recentItems = [
-    ...schools.map(s => ({ ...s, itemType: 'SCHOOL' as const, date: s.updatedAt })),
-    ...wikiArticles.map(w => ({ ...w, itemType: 'WIKI' as const, date: w.lastModified }))
+    ...schools.map(s => ({ ...s, itemType: 'SCHOOL' as const, date: s.updatedAt, displayTitle: s.name })),
+    ...wikiArticles.map(w => ({ ...w, itemType: 'WIKI' as const, date: w.lastModified, displayTitle: w.title })),
+    ...announcements.map(a => ({ ...a, itemType: 'ANNOUNCEMENT' as const, date: a.date, displayTitle: a.title }))
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-   .slice(0, 5);
+   .slice(0, 10);
 
   const getPreviewText = (item: any) => {
     let raw = "";
     if (item.itemType === 'SCHOOL') {
       raw = item.description || item.programs.join(', ') || "";
     } else {
-      raw = item.content.replace(/<[^>]*>?/gm, '') || "";
+      // Clean HTML tags and entities for Announcements and Wiki articles
+      raw = (item.content || "")
+        .replace(/<[^>]*>?/gm, '')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&[a-z0-9]+;/gi, '') || "";
     }
-    return raw.slice(0, 30).trim() + (raw.length > 30 ? "..." : "");
+    return raw.slice(0, 70).trim() + (raw.length > 70 ? "..." : "");
   };
 
   return (
@@ -60,7 +69,21 @@ const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div 
+          onClick={() => setCurrentView(View.ANNOUNCEMENTS)}
+          className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+        >
+          <div className="w-12 h-12 bg-blue-50 text-blue-500 rounded-lg flex items-center justify-center mb-4 group-hover:bg-blue-100 transition-colors">
+            <Bell size={24} />
+          </div>
+          <h4 className="text-gray-500 text-sm font-medium">最新公告</h4>
+          <p className="text-2xl font-bold text-gray-800 mt-1">{announcements.length} 則</p>
+          <div className="mt-4 text-xs text-blue-500 flex items-center font-medium">
+            檢視所有公告 <ExternalLink size={12} className="ml-1" />
+          </div>
+        </div>
+
         <div 
           onClick={() => setCurrentView(View.SCHOOLS)}
           className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer group"
@@ -77,7 +100,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
         <div 
           onClick={() => setCurrentView(View.WIKI)}
-          className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+          className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer group md:col-span-2 lg:col-span-1"
         >
           <div className="w-12 h-12 bg-orange-50 text-orange-500 rounded-lg flex items-center justify-center mb-4 group-hover:bg-orange-100 transition-colors">
             <BookOpen size={24} />
@@ -90,11 +113,11 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* Recent Updates */}
+      {/* Latest Announcements & Trends Section */}
       <div>
         <div className="flex items-center gap-2 mb-4">
           <Clock size={18} className="text-gray-400" />
-          <h3 className="text-lg font-bold text-gray-800">最新更新</h3>
+          <h3 className="text-lg font-bold text-gray-800">最新公告與動態</h3>
         </div>
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 divide-y divide-gray-100 overflow-hidden">
           {recentItems.length > 0 ? (
@@ -103,32 +126,55 @@ const Dashboard: React.FC<DashboardProps> = ({
                 key={item.id} 
                 onClick={() => {
                   if (item.itemType === 'SCHOOL') onNavigateSchool(item.id);
-                  else onNavigateWiki(item.id);
+                  else if (item.itemType === 'WIKI') onNavigateWiki(item.id);
+                  else if (onNavigateAnnouncement) onNavigateAnnouncement(item.id);
+                  else setCurrentView(View.ANNOUNCEMENTS);
                 }}
-                className="p-4 flex items-center justify-between hover:bg-rose-50/30 transition-all cursor-pointer group"
+                className="p-5 flex items-center justify-between hover:bg-rose-50/20 transition-all cursor-pointer group"
               >
-                <div className="flex items-center gap-4">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${item.itemType === 'SCHOOL' ? 'bg-rose-100 text-[#FF4B7D]' : 'bg-orange-100 text-orange-500'}`}>
-                    {item.itemType === 'SCHOOL' ? <SchoolIcon size={16} /> : <BookOpen size={16} />}
+                <div className="flex items-center gap-5 flex-1 min-w-0">
+                  {/* Icon Column */}
+                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm transition-transform group-hover:scale-105 ${
+                    item.itemType === 'SCHOOL' ? 'bg-rose-50 text-[#FF4B7D]' : 
+                    item.itemType === 'WIKI' ? 'bg-orange-50 text-orange-500' : 
+                    'bg-blue-50 text-blue-500'
+                  }`}>
+                    {item.itemType === 'SCHOOL' ? <SchoolIcon size={22} /> : 
+                     item.itemType === 'WIKI' ? <BookOpen size={22} /> : 
+                     <Bell size={22} />}
                   </div>
-                  <div>
-                    <p className="font-bold text-gray-800 text-sm group-hover:text-[#FF4B7D] transition-colors">
-                      {(item as any).name || (item as any).title}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-0.5">
+
+                  {/* Text Content Column */}
+                  <div className="flex-1 min-w-0 pr-4">
+                    <h4 className="font-bold text-gray-800 text-[15px] truncate group-hover:text-[#FF4B7D] transition-colors">
+                      {item.displayTitle}
+                    </h4>
+                    <p className="text-xs text-gray-400 mt-1 line-clamp-1 font-medium leading-relaxed">
                       {getPreviewText(item)}
                     </p>
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-1">
-                  <span className="text-[10px] font-medium text-gray-400 uppercase tracking-tighter">{item.date}</span>
-                  <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded font-bold">{item.itemType === 'SCHOOL' ? '院校' : '知識庫'}</span>
+                
+                {/* Meta Information Column (Far Right, Replacing Arrow) */}
+                <div className="flex items-center gap-4 flex-shrink-0">
+                  <span className={`text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wider border transition-colors ${
+                    item.itemType === 'SCHOOL' ? 'bg-rose-50 text-[#FF4B7D] border-rose-100 group-hover:bg-rose-100' : 
+                    item.itemType === 'WIKI' ? 'bg-orange-50 text-orange-500 border-orange-100 group-hover:bg-orange-100' : 
+                    'bg-blue-50 text-blue-600 border-blue-100 group-hover:bg-blue-100'
+                  }`}>
+                    {item.itemType === 'SCHOOL' ? '院校更新' : 
+                     item.itemType === 'WIKI' ? '知識庫' : 
+                     '最新公告'}
+                  </span>
+                  <span className="text-xs font-bold text-gray-300 tabular-nums min-w-[80px] text-right">
+                    {item.date}
+                  </span>
                 </div>
               </div>
             ))
           ) : (
             <div className="p-12 text-center text-gray-400">
-              目前尚無更新紀錄
+              目前尚無任何更新紀錄
             </div>
           )}
         </div>

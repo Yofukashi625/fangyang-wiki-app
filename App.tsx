@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { View, School, WikiArticle, OnboardingTask, Announcement } from './types';
 import Sidebar from './components/Sidebar';
@@ -16,6 +17,7 @@ const App: React.FC = () => {
   // Deep linking state
   const [initialSchoolId, setInitialSchoolId] = useState<string | null>(null);
   const [initialWikiId, setInitialWikiId] = useState<string | null>(null);
+  const [initialAction, setInitialAction] = useState<string | null>(null);
 
   // Lifted state to share data between components
   const [schools, setSchools] = useState<School[]>([]);
@@ -55,6 +57,12 @@ const App: React.FC = () => {
     setCurrentView(View.WIKI);
   };
 
+  const handleTriggerAction = (action: 'WIKI' | 'ANNOUNCEMENT') => {
+    setInitialAction(`CREATE_${action}`);
+    if (action === 'WIKI') setCurrentView(View.WIKI);
+    if (action === 'ANNOUNCEMENT') setCurrentView(View.ANNOUNCEMENTS);
+  };
+
   const renderContent = () => {
     switch (currentView) {
       case View.DASHBOARD:
@@ -62,16 +70,20 @@ const App: React.FC = () => {
           <Dashboard 
             schools={schools} 
             wikiArticles={wikiArticles} 
+            announcements={announcements}
             setCurrentView={setCurrentView} 
             onNavigateSchool={handleNavigateToSchool}
             onNavigateWiki={handleNavigateToWiki}
+            onNavigateAnnouncement={() => setCurrentView(View.ANNOUNCEMENTS)}
           />
         );
       case View.ANNOUNCEMENTS:
         return (
           <Announcements 
             announcements={announcements} 
-            setAnnouncements={setAnnouncements} 
+            setAnnouncements={setAnnouncements}
+            initialAction={initialAction}
+            onClearAction={() => setInitialAction(null)}
           />
         );
       case View.SCHOOLS:
@@ -90,6 +102,8 @@ const App: React.FC = () => {
             setArticles={setWikiArticles} 
             initialWikiId={initialWikiId}
             onClearInitialId={() => setInitialWikiId(null)}
+            initialAction={initialAction}
+            onClearAction={() => setInitialAction(null)}
           />
         );
       case View.ONBOARDING:
@@ -97,7 +111,15 @@ const App: React.FC = () => {
       case View.RECOMMENDATION_GENERATOR:
         return <RecommendationGenerator />;
       case View.AI_CHAT:
-        return <AIAssistant wikiArticles={wikiArticles} schools={schools} announcements={announcements} />;
+        return (
+          <AIAssistant 
+            wikiArticles={wikiArticles} 
+            schools={schools} 
+            announcements={announcements} 
+            onTriggerCreate={handleTriggerAction}
+            onNavigate={setCurrentView}
+          />
+        );
       case View.SETTINGS:
         return (
           <div className="p-8 text-center text-gray-500">
@@ -106,7 +128,7 @@ const App: React.FC = () => {
           </div>
         );
       default:
-        return <Dashboard schools={schools} wikiArticles={wikiArticles} setCurrentView={setCurrentView} onNavigateSchool={handleNavigateToSchool} onNavigateWiki={handleNavigateToWiki} />;
+        return <Dashboard schools={schools} wikiArticles={wikiArticles} announcements={announcements} setCurrentView={setCurrentView} onNavigateSchool={handleNavigateToSchool} onNavigateWiki={handleNavigateToWiki} />;
     }
   };
 

@@ -1,3 +1,4 @@
+
 export enum View {
   DASHBOARD = 'DASHBOARD',
   ANNOUNCEMENTS = 'ANNOUNCEMENTS',
@@ -66,6 +67,7 @@ export interface Announcement {
   author?: string;
   date: string;
   imageUrl?: string;
+  tags: string[];
 }
 
 export interface Citation {
@@ -90,4 +92,5 @@ export interface OnboardingTask {
   title: string;
   description: string; 
   isCompleted?: boolean; 
+  role?: 'SALES' | 'ADMIN'; // 區分：前端招生顧問 | 後端行政顧問
 }

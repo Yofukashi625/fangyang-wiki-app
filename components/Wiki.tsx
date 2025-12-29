@@ -10,9 +10,11 @@ interface WikiProps {
   setArticles: React.Dispatch<React.SetStateAction<WikiArticle[]>>;
   initialWikiId?: string | null;
   onClearInitialId?: () => void;
+  initialAction?: string | null;
+  onClearAction?: () => void;
 }
 
-const Wiki: React.FC<WikiProps> = ({ articles, setArticles, initialWikiId, onClearInitialId }) => {
+const Wiki: React.FC<WikiProps> = ({ articles, setArticles, initialWikiId, onClearInitialId, initialAction, onClearAction }) => {
   const [activeCategory, setActiveCategory] = useState<WikiCategory | 'ALL'>('ALL');
   const [selectedArticle, setSelectedArticle] = useState<WikiArticle | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -25,7 +27,7 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles, initialWikiId, onCle
   
   const [editForm, setEditForm] = useState<Partial<WikiArticle>>({});
 
-  // Handle deep link from Dashboard
+  // Handle deep link / actions
   useEffect(() => {
     if (initialWikiId && articles.length > 0) {
       const article = articles.find(a => a.id === initialWikiId);
@@ -34,7 +36,12 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles, initialWikiId, onCle
       }
       onClearInitialId?.();
     }
-  }, [initialWikiId, articles]);
+    
+    if (initialAction === 'CREATE_WIKI') {
+      handleStartCreate();
+      onClearAction?.();
+    }
+  }, [initialWikiId, initialAction, articles]);
 
   const filteredArticles = articles.filter(article => {
     const matchesCategory = activeCategory === 'ALL' || article.category === activeCategory;
@@ -67,16 +74,18 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles, initialWikiId, onCle
     setIsCreating(false);
   };
 
-  const handleDelete = async (articleId: string) => {
+  const handleDelete = async (articleId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    
     const previousArticles = [...articles];
     setArticles(prev => prev.filter(a => a.id !== articleId));
-    setSelectedArticle(null); 
+    if (selectedArticle?.id === articleId) setSelectedArticle(null); 
     setIsEditing(false);
 
     try {
       await deleteWikiArticle(articleId);
-    } catch (e) {
-      console.error("Delete failed:", e);
+    } catch (error) {
+      console.error("Delete failed:", error);
       setArticles(previousArticles);
       alert("刪除失敗，已還原資料。請檢查網路連線。");
     }
@@ -248,7 +257,7 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles, initialWikiId, onCle
               <Edit3 size={16} /> 編輯
             </button>
             <button 
-              onClick={() => handleDelete(selectedArticle.id)}
+              onClick={(e) => handleDelete(selectedArticle.id, e)}
               className="px-3 py-1.5 border border-red-200 text-red-500 rounded-lg hover:bg-red-50 flex items-center gap-2 text-sm font-medium transition-colors"
             >
               <Trash2 size={16} /> 刪除
@@ -358,7 +367,17 @@ const Wiki: React.FC<WikiProps> = ({ articles, setArticles, initialWikiId, onCle
                   className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md hover:border-[#FF4B7D]/30 transition-all cursor-pointer group relative overflow-hidden"
                 >
                   <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#FF4B7D] opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                  <div className="flex justify-between items-start mb-2">
+                  
+                  {/* 直接刪除按鈕 (右上角) */}
+                  <button 
+                    onClick={(e) => handleDelete(article.id, e)}
+                    className="absolute top-4 right-4 p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 z-10"
+                    title="直接刪除"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+
+                  <div className="flex justify-between items-start mb-2 pr-8">
                     <h3 className="text-lg font-bold text-gray-800 group-hover:text-[#FF4B7D] transition-colors">
                       {article.title}
                     </h3>

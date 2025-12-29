@@ -1,13 +1,16 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import { ChatMessage, WikiArticle, School, Citation, Announcement } from '../types';
+import { ChatMessage, WikiArticle, School, Citation, Announcement, View } from '../types';
 import { chatWithKnowledgeBase } from '../services/geminiService';
-import { Send, Bot, User as UserIcon, Loader2, Sparkles, BookOpen, School as SchoolIcon, Bell, ThumbsUp, ThumbsDown, AlertCircle, HelpCircle, X, MapPin, DollarSign, Book } from 'lucide-react';
+import { Send, Bot, User as UserIcon, Loader2, Sparkles, BookOpen, School as SchoolIcon, Bell, ThumbsUp, ThumbsDown, AlertCircle, HelpCircle, X, MapPin, DollarSign, Book, PlusCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 interface AIAssistantProps {
   wikiArticles: WikiArticle[];
   schools: School[];
   announcements: Announcement[];
+  onTriggerCreate?: (type: 'WIKI' | 'ANNOUNCEMENT') => void;
+  onNavigate?: (view: View) => void;
 }
 
 const SUGGESTED_QUESTIONS = [
@@ -24,13 +27,13 @@ const CATEGORY_LABELS: Record<string, string> = {
   ACTIVITIES: '放洋最新活動'
 };
 
-const AIAssistant: React.FC<AIAssistantProps> = ({ wikiArticles, schools, announcements }) => {
+const AIAssistant: React.FC<AIAssistantProps> = ({ wikiArticles, schools, announcements, onTriggerCreate, onNavigate }) => {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',
       role: 'model',
-      text: '你好！我是 FangYang Nexus 智能助教。\n我可以協助你查詢學校資料、解釋專有名詞（如 ATAS, STEM）、提供銷售話術建議，或是查詢最新的公司公告與規則異動。\n\n請直接提問，或選擇下方的常見問題。',
+      text: '你好！我是 FangYang Nexus 智能助教。\n我可以協助你查詢學校資料、解釋專有名詞（如 ATAS, STEM數位化）、提供銷售話術建議，或是查詢最新的公司公告與規則異動。\n\n請直接提問，或選擇下方的常見問題。',
       timestamp: new Date(),
       confidence: 'HIGH'
     }
@@ -179,6 +182,13 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ wikiArticles, schools, announ
     );
   };
 
+  // 檢查是否顯示「建議新增資料」卡片
+  const shouldSuggestCreation = (msg: ChatMessage) => {
+    if (msg.role !== 'model' || msg.id === 'welcome') return false;
+    const missingKeywords = ['未包含', '找不到相關資訊', '沒有資料', '並未包含'];
+    return msg.confidence === 'LOW' || missingKeywords.some(k => msg.text.includes(k));
+  };
+
   return (
     <div className="h-screen pt-4 pb-8 px-4 flex flex-col max-w-5xl mx-auto relative">
       <div className="bg-white rounded-2xl shadow-xl border border-gray-200 flex flex-col h-full overflow-hidden">
@@ -202,6 +212,8 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ wikiArticles, schools, announ
         <div className="flex-1 overflow-y-auto p-6 space-y-8 bg-[#F8FAFC]">
           {messages.map((msg) => {
             const isUser = msg.role === 'user';
+            const suggestCreation = shouldSuggestCreation(msg);
+
             return (
               <div key={msg.id} className={`flex gap-4 ${isUser ? 'flex-row-reverse' : ''} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${isUser ? 'bg-slate-700 text-white' : 'bg-white text-[#FF4B7D] border border-gray-100'}`}>
@@ -220,7 +232,34 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ wikiArticles, schools, announ
                   </div>
 
                   {!isUser && (
-                    <div className="flex flex-col gap-2 w-full">
+                    <div className="flex flex-col gap-3 w-full">
+                      {/* 知識缺失建議卡片 */}
+                      {suggestCreation && (
+                        <div className="bg-rose-50 border border-rose-200 p-4 rounded-xl shadow-sm animate-in zoom-in duration-300">
+                          <div className="flex items-start gap-3">
+                            <PlusCircle className="text-[#FF4B7D] shrink-0 mt-0.5" size={18} />
+                            <div>
+                              <p className="text-sm font-bold text-gray-800">查無此項資料，是否要新增至知識庫？</p>
+                              <p className="text-xs text-gray-500 mt-1">若您手邊有相關資訊，建議立即補齊資料庫，協助其他同仁。</p>
+                              <div className="flex gap-2 mt-3">
+                                <button 
+                                  onClick={() => onTriggerCreate?.('WIKI')}
+                                  className="px-3 py-1.5 bg-white border border-rose-200 text-[#FF4B7D] text-xs font-bold rounded-lg hover:bg-rose-100 transition-colors flex items-center gap-1.5"
+                                >
+                                  <BookOpen size={14} /> 新增知識庫條目
+                                </button>
+                                <button 
+                                  onClick={() => onTriggerCreate?.('ANNOUNCEMENT')}
+                                  className="px-3 py-1.5 bg-white border border-blue-200 text-blue-600 text-xs font-bold rounded-lg hover:bg-blue-50 transition-colors flex items-center gap-1.5"
+                                >
+                                  <Bell size={14} /> 發佈最新公告
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       {msg.sources && msg.sources.length > 0 && (
                         <div className="flex flex-wrap gap-2 mt-1">
                           {msg.sources.map((source, idx) => (
@@ -286,7 +325,21 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ wikiArticles, schools, announ
         </div>
 
         {/* Input Area */}
-        <div className="p-4 bg-white border-t border-gray-100">
+        <div className="p-4 bg-white border-t border-gray-100 space-y-3">
+          {/* 推薦問題區 (SUGGESTED_QUESTIONS) - Horizontal single line scroll */}
+          <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1 no-scrollbar">
+            {SUGGESTED_QUESTIONS.map((q, i) => (
+              <button
+                key={i}
+                onClick={() => handleSend(q)}
+                disabled={isLoading}
+                className="whitespace-nowrap px-4 py-2 bg-slate-50 border border-slate-200 rounded-full text-[11px] font-bold text-slate-600 hover:bg-white hover:border-[#FF4B7D] hover:text-[#FF4B7D] transition-all flex-shrink-0 shadow-sm"
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+
           <div className="relative flex items-end gap-2 p-2 border border-gray-200 rounded-xl focus-within:ring-2 focus-within:ring-[#FF4B7D] focus-within:border-[#FF4B7D] transition-all bg-white shadow-sm">
             <textarea
               className="w-full max-h-32 p-3 resize-none focus:outline-none text-sm bg-transparent placeholder-gray-400 text-gray-900"
@@ -305,7 +358,9 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ wikiArticles, schools, announ
             </button>
           </div>
           <p className="text-[10px] text-center text-gray-400 mt-2">
-            AI 回答僅供參考，重要公告資訊請務必再次核對 <span className="underline cursor-pointer hover:text-gray-600">最新公告專區</span>。
+            AI 回答僅供參考，重要公告資訊請務必再次核對 
+            <span onClick={() => onNavigate?.(View.ANNOUNCEMENTS)} className="underline cursor-pointer hover:text-gray-600 mx-1">最新公告專區</span>、
+            <span onClick={() => onNavigate?.(View.WIKI)} className="underline cursor-pointer hover:text-gray-600 mx-1">員工知識庫</span>。
           </p>
         </div>
       </div>
@@ -360,9 +415,9 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ wikiArticles, schools, announ
                      const w = previewItem.data as WikiArticle;
                      return (
                        <>
-                         <h1 className="text-2xl font-bold text-gray-900 mb-2">{w.title}</h1>
-                         <div className="text-xs text-gray-400 mb-6">Last Updated: {w.lastModified}</div>
-                         <ReactMarkdown>{w.content}</ReactMarkdown>
+                         <h1 className="text-2xl font-bold text-gray-900 mb-4">{w.title}</h1>
+                         <div className="text-xs text-gray-400 mb-6">最後更新: {w.lastModified}</div>
+                         <div className="prose prose-slate max-w-none text-gray-700 leading-relaxed" dangerouslySetInnerHTML={{ __html: w.content }} />
                        </>
                      );
                    })()}
@@ -378,7 +433,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ wikiArticles, schools, announ
                          </span>
                          <h1 className="text-2xl font-bold text-gray-900 mb-2">{a.title}</h1>
                          <div className="text-xs text-gray-400 mb-6">發佈日期: {a.date}</div>
-                         <div dangerouslySetInnerHTML={{ __html: a.content }} />
+                         <div className="prose prose-slate max-w-none text-gray-700 leading-relaxed" dangerouslySetInnerHTML={{ __html: a.content }} />
                        </>
                      );
                    })()}

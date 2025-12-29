@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Heading1, Heading2, Heading3, Type, Palette, Link as LinkIcon, Image as ImageIcon } from 'lucide-react';
+import { Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Heading1, Heading2, Heading3, Type, Palette, Link as LinkIcon, Image as ImageIcon, Eraser } from 'lucide-react';
 
 interface RichTextEditorProps {
   value: string;
@@ -67,7 +67,6 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange,
           if (!ctx) return reject('Could not get canvas context');
           
           ctx.drawImage(img, 0, 0, width, height);
-          // Convert to JPEG with 0.7 quality to drastically reduce Base64 string length
           resolve(canvas.toDataURL('image/jpeg', 0.7));
         };
         img.onerror = reject;
@@ -111,6 +110,48 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange,
     }
   };
 
+  // --- Optimized Paste Handling ---
+  const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    // 獲取貼上的 HTML 內容或純文字
+    const html = e.clipboardData.getData('text/html');
+    const text = e.clipboardData.getData('text/plain');
+
+    if (html) {
+      // 建立一個暫時的 DOM 來過濾危險標籤與行內樣式
+      const template = document.createElement('div');
+      template.innerHTML = html;
+      
+      // 遞迴清理所有節點的樣式與屬性，僅保留基礎標籤
+      const cleanNode = (node: Node) => {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          const el = node as HTMLElement;
+          // 移除所有屬性，除了 <a> 的 href
+          const attrs = el.attributes;
+          for (let i = attrs.length - 1; i >= 0; i--) {
+            const attrName = attrs[i].name;
+            if (attrName !== 'href' && attrName !== 'target') {
+              el.removeAttribute(attrName);
+            }
+          }
+          // 如果是 <a> 則強制新視窗開啟
+          if (el.tagName === 'A') {
+            el.setAttribute('target', '_blank');
+            el.setAttribute('rel', 'noopener noreferrer');
+          }
+        }
+        node.childNodes.forEach(cleanNode);
+      };
+      
+      cleanNode(template);
+      document.execCommand('insertHTML', false, template.innerHTML);
+    } else {
+      // 如果沒有 HTML，則直接插入純文字
+      document.execCommand('insertText', false, text);
+    }
+    handleInput();
+  };
+
   useEffect(() => {
     const isEmpty = !value || value === '<br>' || value === '<p><br></p>';
     setShowPlaceholder(isEmpty);
@@ -133,16 +174,63 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange,
     if (!contentEditableRef.current) return;
     contentEditableRef.current.focus();
     restoreSelection();
+    
+    // 如果是標題命令，先嘗試清除格式確保標籤能正確替換
+    if (command === 'formatBlock' && (cmdValue?.startsWith('H') || cmdValue === 'P')) {
+      document.execCommand('removeFormat', false, undefined);
+    }
+    
     document.execCommand(command, false, cmdValue);
+    saveSelection();
+    handleInput();
+  };
+
+  const handleClearFormat = () => {
+    if (!contentEditableRef.current) return;
+    contentEditableRef.current.focus();
+    restoreSelection();
+    // 清除行內樣式
+    document.execCommand('removeFormat', false, undefined);
+    // 強制轉回段落標籤
+    document.execCommand('formatBlock', false, 'P');
     saveSelection();
     handleInput();
   };
 
   const handleInsertLink = (e: React.MouseEvent | KeyboardEvent) => {
     if (e instanceof MouseEvent) e.preventDefault();
+    
+    saveSelection();
+    
+    const selection = window.getSelection();
+    const selectedText = selection ? selection.toString().trim() : "";
+    const urlPattern = /^(https?:\/\/[^\s]+)$|^(www\.[^\s]+)$/;
+    
+    if (urlPattern.test(selectedText)) {
+      let finalUrl = selectedText;
+      if (selectedText.startsWith('www.')) {
+        finalUrl = 'https://' + selectedText;
+      }
+      
+      restoreSelection();
+      document.execCommand('insertHTML', false, `<a href="${finalUrl}" target="_blank" rel="noopener noreferrer">${selectedText}</a>`);
+      handleInput();
+      return;
+    }
+    
     const url = prompt("請輸入連結網址 (URL):", "https://");
     if (url) {
-      execCommand('createLink', url);
+      restoreSelection();
+      
+      const selection = window.getSelection();
+      if (selection && (selection.isCollapsed || !selection.toString().trim()) && contentEditableRef.current) {
+        document.execCommand('insertHTML', false, `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`);
+      } else {
+        const currentSelected = selection?.toString() || url;
+        document.execCommand('insertHTML', false, `<a href="${url}" target="_blank" rel="noopener noreferrer">${currentSelected}</a>`);
+      }
+      
+      handleInput();
     }
   };
 
@@ -153,7 +241,6 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange,
         const optimizedBase64 = await processAndResizeImage(file);
         execCommand('insertImage', optimizedBase64);
         
-        // Apply consistent styling to images inserted via execCommand
         setTimeout(() => {
           if (contentEditableRef.current) {
             const images = contentEditableRef.current.querySelectorAll('img');
@@ -173,7 +260,6 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange,
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
@@ -187,7 +273,6 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange,
 
   return (
     <div className={`border border-gray-300 rounded-lg overflow-hidden bg-white flex flex-col relative ${className}`}>
-      {/* Hidden File Input */}
       <input 
         type="file" 
         ref={fileInputRef} 
@@ -196,7 +281,6 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange,
         onChange={handleImageUpload} 
       />
 
-      {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-1 p-2 border-b border-gray-200 bg-gray-50 shrink-0 z-10 relative">
         <ToolbarButton icon={<Heading1 size={18}/>} onClick={() => execCommand('formatBlock', 'H1')} label="標題 1" />
         <ToolbarButton icon={<Heading2 size={18}/>} onClick={() => execCommand('formatBlock', 'H2')} label="標題 2" />
@@ -212,13 +296,16 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange,
         <ColorDropdown onSelectColor={(color) => execCommand('foreColor', color)} />
         <ToolbarButton icon={<LinkIcon size={18}/>} onClick={() => handleInsertLink({} as any)} label="插入連結 (Ctrl+K)" />
         <ToolbarButton icon={<ImageIcon size={18}/>} onClick={() => fileInputRef.current?.click()} label="插入圖片" />
-        <div className="w-px h-5 bg-gray-300 mx-1" />
         
+        <div className="w-px h-5 bg-gray-300 mx-1" />
+        <ToolbarButton icon={<Eraser size={18}/>} onClick={handleClearFormat} label="清除所有格式" />
+
+        <div className="w-px h-5 bg-gray-300 mx-1" />
         <ToolbarButton icon={<AlignLeft size={18}/>} onClick={() => execCommand('justifyLeft')} label="靠左" />
         <ToolbarButton icon={<AlignCenter size={18}/>} onClick={() => execCommand('justifyCenter')} label="置中" />
         <ToolbarButton icon={<AlignRight size={18}/>} onClick={() => execCommand('justifyRight')} label="靠右" />
+        
         <div className="w-px h-5 bg-gray-300 mx-1" />
-
         <ToolbarButton icon={<List size={18}/>} onClick={() => execCommand('insertUnorderedList')} label="項目符號" />
         <ToolbarButton icon={<ListOrdered size={18}/>} onClick={() => execCommand('insertOrderedList')} label="編號清單" />
       </div>
@@ -236,6 +323,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange,
           contentEditable
           onInput={handleInput}
           onBlur={handleInput}
+          onPaste={handlePaste}
           onMouseUp={saveSelection}
           onKeyUp={saveSelection}
           onCompositionStart={handleCompositionStart}

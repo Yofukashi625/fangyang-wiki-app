@@ -134,7 +134,7 @@ const RecommendationGenerator: React.FC = () => {
           <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
             <Wand2 className="text-[#FF4B7D]" /> 選校推薦產生器
           </h2>
-          <p className="text-gray-500 mt-1 text-sm">輸入資料後下載 PNG，產出水平 16:9 三欄式建議書</p>
+          <p className="text-gray-500 mt-1 text-sm">輸入資料後一鍵下載選校推薦表！</p>
         </div>
         <button 
           onClick={downloadAsPng}
@@ -362,14 +362,11 @@ const RecommendationGenerator: React.FC = () => {
         </div>
       </div>
 
-      {/* --- 隱藏的水平匯出畫布 (PNG 專用) --- */}
-      {/* 修正：1920x1080 規格，優化內部空間比例，確保 STEM 與推薦理由可見 */}
       <div className="fixed top-[-10000px] left-[-10000px] pointer-events-none">
         <div 
           ref={exportRef}
           className="bg-white p-14 w-[1920px] h-[1080px] flex flex-col font-sans overflow-hidden"
         >
-          {/* Header Row - 壓縮高度 */}
           <div className="mb-10 text-center border-b-[6px] border-slate-50 pb-8 flex-shrink-0">
             <div className="text-[#FF4B7D] font-black text-7xl italic tracking-tighter mb-5 transform -skew-x-12 drop-shadow-sm">FANGYANG NEXUS</div>
             <div className="flex justify-center gap-10">
@@ -392,18 +389,15 @@ const RecommendationGenerator: React.FC = () => {
             </div>
           </div>
 
-          {/* 三欄學校佈局 - 優化空間分配 */}
           <div className="flex gap-8 flex-1 items-stretch overflow-hidden mb-8">
             {schools.slice(0, 3).map((school) => {
               const theme = getRiskTheme(school.riskLevel);
               return (
                 <div key={school.id} className={`flex-1 flex flex-col p-10 border-[6px] ${theme.border} rounded-[4rem] bg-white shadow-xl relative overflow-hidden`}>
-                  {/* Status Badge */}
                   <div className={`absolute top-0 right-0 ${theme.badge} px-12 py-5 rounded-bl-[4rem] text-2xl font-black text-white shadow-md tracking-widest uppercase z-20`}>
                     {theme.label}
                   </div>
 
-                  {/* Top Meta */}
                   <div className="mb-6 pt-1">
                     <div className="text-xl font-black text-slate-400 tracking-widest uppercase mb-2">{school.ranking || 'RANKING N/A'}</div>
                     <div className="flex items-center gap-2 text-xl font-black text-slate-800">
@@ -411,7 +405,6 @@ const RecommendationGenerator: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Title Section - 縮減文字大小 */}
                   <div className="mb-8 flex-shrink-0">
                     <h2 className="text-4xl font-black text-slate-900 tracking-tight mb-2 leading-tight truncate">{school.nameCN || '學校名稱'}</h2>
                     <p className="text-2xl font-black text-slate-400 italic mb-5 truncate">{school.nameEN || 'University Name'}</p>
@@ -419,7 +412,6 @@ const RecommendationGenerator: React.FC = () => {
                     <h3 className="text-2xl font-black text-slate-800 leading-tight mb-2 line-clamp-1">{school.deptEN || 'Program Title'}</h3>
                   </div>
 
-                  {/* Requirements Table */}
                   <div className="grid grid-cols-3 gap-0 border-y-4 border-slate-50 py-8 mb-6 flex-shrink-0">
                     <div className="text-center">
                       <div className="text-base font-black text-slate-400 uppercase tracking-widest mb-1">GPA</div>
@@ -435,7 +427,6 @@ const RecommendationGenerator: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* STEM Status - 重要：確保高度固定 */}
                   <div className="mb-5 flex-shrink-0 min-h-[36px]">
                     {school.isSTEM && (
                       <div className="flex items-center gap-2 text-xl font-black text-emerald-600">
@@ -444,7 +435,6 @@ const RecommendationGenerator: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Description Section - 靈活高度並優化字體 */}
                   <div className="flex-1 overflow-hidden border-l-4 border-slate-50 pl-5 py-1">
                     <p className="text-lg text-slate-500 font-bold leading-[1.6] text-justify italic opacity-90">
                       {school.description || '請在左側輸入介紹內容...'}
@@ -455,7 +445,6 @@ const RecommendationGenerator: React.FC = () => {
             })}
           </div>
 
-          {/* Footer Row - 底部資訊 */}
           <div className="pt-8 border-t-[6px] border-slate-50 text-slate-300 flex justify-between items-end flex-shrink-0">
              <div className="space-y-1 text-lg font-black">
                 <p>• 英檢成績（數值）意味單科不得低於該分數</p>

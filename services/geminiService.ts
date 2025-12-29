@@ -1,9 +1,7 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { School, Citation } from '../types';
 
 // Initialize Gemini Client
-// Always use the named parameter apiKey and get it from process.env.API_KEY
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 /**
@@ -36,7 +34,6 @@ export const parseSchoolDocument = async (fileName: string, fileContentMock: str
       If information is missing, use reasonable estimations based on the school name or leave blank/generic.
     `;
 
-    // Updated to use gemini-3-flash-preview for basic text extraction tasks
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
@@ -96,14 +93,14 @@ export const chatWithKnowledgeBase = async (
 ): Promise<ChatResponse> => {
   try {
     const systemInstruction = `
-      You are "FangYang Nexus AI", an advanced assistant for EduConnect study abroad consultants.
-      Your users are consultants.
+      你現在是 "FangYang Nexus AI"，是專門為留學顧問設計的高級助手。
       
-      Your Role:
-      1. Answer questions about schools, application processes (US/UK/CA/AU), terminology, sales scripts, and internal announcements.
-      2. Use the provided CONTEXT strictly to answer. 
-      3. If the answer is found in the CONTEXT, you MUST cite the source ID and Title.
-      4. Tone: Professional, helpful, encouraging. Use Traditional Chinese (Taiwan).
+      你的任務與規則：
+      1. 根據提供的 CONTEXT 資料庫回答關於學校、申請流程、專有名詞、銷售話術及內部公告的問題。
+      2. 必須嚴格遵守 CONTEXT 內容。如果資料庫中沒有相關資訊，請誠實告知，不要胡編亂造。
+      3. **重要安全規則**：嚴禁在 "answer" 欄位的文字中顯示任何資料庫 ID 字串（如 iUDRH2zWo...）。
+      4. **引用規範**：若回答引用了資料庫內容，請將對應的 ID 和標題放入 JSON 回傳結構中的 "sources" 陣列中，絕對不要寫在對話文字內。
+      5. 語氣：專業、熱情、簡潔且具建設性。使用繁體中文（台灣習慣）。
     `;
 
     const prompt = `
@@ -114,12 +111,11 @@ export const chatWithKnowledgeBase = async (
       ${query}
       
       Output JSON with:
-      - answer: The response text.
-      - sources: Array of objects {id, title, type} used to answer.
-      - confidence: "HIGH", "MEDIUM", or "LOW".
+      - answer: 你的回答文字。嚴禁包含任何 ID 字串或 "(ID: ...)"。
+      - sources: 被引用的資料來源物件陣列 [{id, title, type}]。
+      - confidence: "HIGH", "MEDIUM", or "LOW"。
     `;
 
-    // Updated to use gemini-3-flash-preview for basic Q&A tasks
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: prompt,
@@ -169,7 +165,6 @@ interface AnalysisResponse {
 }
 
 /**
- * Fix: Export analyzeSchoolPlacement to resolve the module error.
  * Uses gemini-3-pro-preview for complex reasoning task of matching student data to school database.
  */
 export const analyzeSchoolPlacement = async (
@@ -202,15 +197,14 @@ export const analyzeSchoolPlacement = async (
       - Safety (保底): Schools where the student has a very high chance of admission.
 
       Return a JSON object with:
-      - dreamIds: Array of school IDs selected for Dream category.
-      - matchIds: Array of school IDs selected for Match category.
-      - safetyIds: Array of school IDs selected for Safety category.
-      - reasoning: A detailed explanation in Traditional Chinese (Taiwan) explaining why these schools were chosen and how they fit the student's preferences.
-
-      Important: ONLY use IDs from the provided SCHOOL DATABASE.
+      - dreamIds: Array of school IDs selected.
+      - matchIds: Array of school IDs selected.
+      - safetyIds: Array of school IDs selected.
+      - reasoning: A detailed explanation in Traditional Chinese (Taiwan). 
+      
+      Security Notice: Do not display school IDs in the reasoning text.
     `;
 
-    // Use gemini-3-pro-preview for advanced reasoning and matching
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: prompt,
@@ -232,7 +226,6 @@ export const analyzeSchoolPlacement = async (
     if (!text) throw new Error("Empty analysis response");
 
     const analysis = JSON.parse(text) as AnalysisResponse;
-
     const findSchool = (id: string) => schools.find(s => s.id === id);
     
     return {
