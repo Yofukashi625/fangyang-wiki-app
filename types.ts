@@ -7,6 +7,7 @@ export enum View {
   AI_CHAT = 'AI_CHAT',
   ONBOARDING = 'ONBOARDING',
   RECOMMENDATION_GENERATOR = 'RECOMMENDATION_GENERATOR',
+  TRANSCRIPT_CONVERTER = 'TRANSCRIPT_CONVERTER',
   SETTINGS = 'SETTINGS'
 }
 
@@ -93,4 +94,21 @@ export interface OnboardingTask {
   description: string; 
   isCompleted?: boolean; 
   role?: 'SALES' | 'ADMIN'; // 區分：前端招生顧問 | 後端行政顧問
+}
+
+export interface TranscriptCourse {
+  name: string;
+  credits: number;
+  originalGrade: string; // e.g. "A+", "85", "4.3"
+  gpa4: number; // Converted to 4.0 scale
+  percentage: number; // Converted to percentage
+}
+
+export interface TranscriptResult {
+  studentName?: string;
+  university?: string;
+  courses: TranscriptCourse[];
+  overallGpa4: number;
+  overallPercentage: number;
+  totalCredits: number;
 }

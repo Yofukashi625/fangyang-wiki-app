@@ -9,6 +9,7 @@ import AIAssistant from './components/AIAssistant';
 import Onboarding from './components/Onboarding';
 import Announcements from './components/Announcements';
 import RecommendationGenerator from './components/RecommendationGenerator';
+import TranscriptConverter from './components/TranscriptConverter';
 import { getWikiArticles, getSchools, getOnboardingTasks, getAnnouncements } from './services/firebase';
 
 const App: React.FC = () => {
@@ -108,6 +109,8 @@ const App: React.FC = () => {
         );
       case View.ONBOARDING:
         return <Onboarding tasks={onboardingTasks} setTasks={setOnboardingTasks} />;
+      case View.TRANSCRIPT_CONVERTER:
+        return <TranscriptConverter />;
       case View.RECOMMENDATION_GENERATOR:
         return <RecommendationGenerator />;
       case View.AI_CHAT:

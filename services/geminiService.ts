@@ -1,12 +1,108 @@
-import { GoogleGenAI, Type } from "@google/genai";
-import { School, Citation } from '../types';
 
-// Initialize Gemini Client
+import { GoogleGenAI, Type } from "@google/genai";
+import { School, Citation, TranscriptResult } from '../types';
+
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 /**
- * Simulates parsing a "file" (raw text) using Gemini to extract structured School data.
+ * Utility to clean potential markdown code blocks or unescaped characters 
+ * from the AI response before parsing as JSON.
  */
+const cleanJSON = (text: string): string => {
+  let cleaned = text.trim();
+  // Remove markdown code blocks if present
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```(?:json)?|```$/g, '').trim();
+  }
+  return cleaned;
+};
+
+export const parseTranscript = async (imageParts: { inlineData: { data: string, mimeType: string } }[]): Promise<TranscriptResult> => {
+  try {
+    const prompt = `
+      You are an expert transcript analyst for a study abroad agency in Taiwan.
+      Task: Extract all courses, credits, and grades from the provided transcript images.
+      
+      CRITICAL RULES:
+      1. Keep the course "name" in its ORIGINAL language (e.g., Traditional Chinese). Do NOT translate to English.
+      2. You MUST return at least an empty array for "courses" if no data is found.
+      3. Conversion Mapping (Strictly follow this Step Formula):
+         - Score 80-100 (or A): 4.0
+         - Score 70-79 (or B): 3.0
+         - Score 60-69 (or C): 2.0
+         - Score 59 and below (or F/D): 0.0
+      
+      EXCLUSION RULES (CRITICAL):
+      Identify these keywords in the grade or remarks. These courses should be listed in "courses" but EXCLUDED from "overallGpa4", "overallPercentage", and "totalCredits" calculation:
+      - 抵免 (Often marked as "抵")
+      - 退選 (Often marked as "退" or "W")
+      - 停修 (Often marked as "停")
+      - Pass (Often marked as "P")
+      - Physical Education (體育)
+      
+      Return a JSON object with:
+      - studentName, university, courses
+      - overallGpa4: Weighted average [Sum(credits * gpa4) / Sum(credits)] for qualified courses.
+      - overallPercentage: Weighted average [Sum(credits * percentage) / Sum(credits)] for qualified courses.
+      - totalCredits: Sum of credits for qualified courses only.
+    `;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: { parts: [...imageParts, { text: prompt }] },
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            studentName: { type: Type.STRING },
+            university: { type: Type.STRING },
+            courses: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  name: { type: Type.STRING },
+                  credits: { type: Type.NUMBER },
+                  originalGrade: { type: Type.STRING },
+                  gpa4: { type: Type.NUMBER },
+                  percentage: { type: Type.NUMBER }
+                },
+                required: ['name', 'credits', 'originalGrade', 'gpa4', 'percentage']
+              }
+            },
+            overallGpa4: { type: Type.NUMBER },
+            overallPercentage: { type: Type.NUMBER },
+            totalCredits: { type: Type.NUMBER }
+          },
+          required: ['courses', 'overallGpa4', 'overallPercentage', 'totalCredits']
+        }
+      }
+    });
+
+    const text = response.text;
+    if (!text) throw new Error("No response from Gemini");
+    
+    try {
+      const parsed = JSON.parse(cleanJSON(text));
+      return {
+        studentName: parsed.studentName || "未知學生",
+        university: parsed.university || "未知學校",
+        courses: Array.isArray(parsed.courses) ? parsed.courses : [],
+        overallGpa4: typeof parsed.overallGpa4 === 'number' ? parsed.overallGpa4 : 0,
+        overallPercentage: typeof parsed.overallPercentage === 'number' ? parsed.overallPercentage : 0,
+        totalCredits: typeof parsed.totalCredits === 'number' ? parsed.totalCredits : 0
+      };
+    } catch (parseError) {
+      console.error("JSON Parsing Error Details:", text);
+      throw new Error(`Failed to parse transcript JSON: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
+    }
+  } catch (error) {
+    console.error("Transcript Parse Error:", error);
+    throw error;
+  }
+};
+
 export const parseSchoolDocument = async (fileName: string, fileContentMock: string): Promise<Partial<School>> => {
   try {
     const prompt = `
@@ -18,20 +114,7 @@ export const parseSchoolDocument = async (fileName: string, fileContentMock: str
       """
 
       Please extract the following information into a JSON object:
-      - name (School Name)
-      - location (City, State/Province)
-      - country
-      - type (University, High School, or Language School)
-      - programs (Array of key program names mentioned)
-      - department (Specific college or faculty name if mentioned, e.g. "School of Engineering")
-      - qsRanking (Number, global ranking if available, else null)
-      - usNewsRanking (Number, national ranking if available, else null)
-      - tuitionRange (e.g., "$30k - $40k")
-      - requirements (Object with gpa, toefl, ielts, sat fields if found)
-      - tags (Array of keywords like STEM, Boarding, Urban, Ranking info)
-      - description (A short summary in Traditional Chinese)
-
-      If information is missing, use reasonable estimations based on the school name or leave blank/generic.
+      - name, location, country, type, programs, department, qsRanking, usNewsRanking, tuitionRange, requirements, tags, description
     `;
 
     const response = await ai.models.generateContent({
@@ -70,7 +153,7 @@ export const parseSchoolDocument = async (fileName: string, fileContentMock: str
     const text = response.text;
     if (!text) throw new Error("No response from Gemini");
     
-    return JSON.parse(text) as Partial<School>;
+    return JSON.parse(cleanJSON(text)) as Partial<School>;
 
   } catch (error) {
     console.error("Gemini Parse Error:", error);
@@ -84,37 +167,13 @@ interface ChatResponse {
   confidence: 'HIGH' | 'MEDIUM' | 'LOW';
 }
 
-/**
- * Chat with the AI Assistant using context from the Knowledge Base.
- */
 export const chatWithKnowledgeBase = async (
   query: string, 
   contextDocs: string
 ): Promise<ChatResponse> => {
   try {
-    const systemInstruction = `
-      你現在是 "FangYang Nexus AI"，是專門為留學顧問設計的高級助手。
-      
-      你的任務與規則：
-      1. 根據提供的 CONTEXT 資料庫回答關於學校、申請流程、專有名詞、銷售話術及內部公告的問題。
-      2. 必須嚴格遵守 CONTEXT 內容。如果資料庫中沒有相關資訊，請誠實告知，不要胡編亂造。
-      3. **重要安全規則**：嚴禁在 "answer" 欄位的文字中顯示任何資料庫 ID 字串（如 iUDRH2zWo...）。
-      4. **引用規範**：若回答引用了資料庫內容，請將對應的 ID 和標題放入 JSON 回傳結構中的 "sources" 陣列中，絕對不要寫在對話文字內。
-      5. 語氣：專業、熱情、簡潔且具建設性。使用繁體中文（台灣習慣）。
-    `;
-
-    const prompt = `
-      CONTEXT DATABASE:
-      ${contextDocs}
-
-      USER QUESTION:
-      ${query}
-      
-      Output JSON with:
-      - answer: 你的回答文字。嚴禁包含任何 ID 字串或 "(ID: ...)"。
-      - sources: 被引用的資料來源物件陣列 [{id, title, type}]。
-      - confidence: "HIGH", "MEDIUM", or "LOW"。
-    `;
+    const systemInstruction = `你現在是 "FangYang Nexus AI"。根據 CONTEXT 回答問題。語氣專業、簡潔、使用繁體中文。`;
+    const prompt = `CONTEXT: ${contextDocs}\nQUESTION: ${query}`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
@@ -143,17 +202,10 @@ export const chatWithKnowledgeBase = async (
       },
     });
 
-    const text = response.text;
-    if (!text) throw new Error("Empty response");
-
-    return JSON.parse(text) as ChatResponse;
+    return JSON.parse(cleanJSON(response.text)) as ChatResponse;
   } catch (error) {
     console.error("Gemini Chat Error:", error);
-    return {
-      answer: "系統暫時無法處理您的請求，請稍後再試。",
-      sources: [],
-      confidence: 'LOW'
-    };
+    return { answer: "系統錯誤。", sources: [], confidence: 'LOW' };
   }
 };
 
@@ -164,9 +216,6 @@ interface AnalysisResponse {
   reasoning: string;
 }
 
-/**
- * Uses gemini-3-pro-preview for complex reasoning task of matching student data to school database.
- */
 export const analyzeSchoolPlacement = async (
   formData: { gpa: string; testScores: string; major: string; preferences: string },
   schools: School[],
@@ -174,36 +223,10 @@ export const analyzeSchoolPlacement = async (
 ): Promise<{ dream: School[]; match: School[]; safety: School[]; reasoning: string }> => {
   try {
     const schoolsContext = schools.map(s => 
-      `[ID: ${s.id}] Name: ${s.name}, Rankings: QS ${s.qsRanking || 'N/A'} / US News ${s.usNewsRanking || 'N/A'}, Req: ${JSON.stringify(s.requirements)}, Description: ${s.description}`
+      `[ID: ${s.id}] Name: ${s.name}, Rankings: QS ${s.qsRanking || 'N/A'}, Req: ${JSON.stringify(s.requirements)}`
     ).join('\n');
 
-    const prompt = `
-      You are an expert study abroad consultant at "FangYang Nexus".
-      Your task is to analyze a student's profile and recommend schools from our database.
-
-      STUDENT PROFILE:
-      - GPA: ${formData.gpa}
-      - Test Scores: ${formData.testScores}
-      - Target Major: ${formData.major}
-      - Preferences: ${formData.preferences}
-
-      SCHOOL DATABASE:
-      ${schoolsContext}
-
-      GOAL:
-      Select exactly ${schoolCount} schools from the database and categorize them into:
-      - Dream (衝刺): Schools slightly above the student's profile or high ranking.
-      - Match (合適): Schools that match the student's profile well.
-      - Safety (保底): Schools where the student has a very high chance of admission.
-
-      Return a JSON object with:
-      - dreamIds: Array of school IDs selected.
-      - matchIds: Array of school IDs selected.
-      - safetyIds: Array of school IDs selected.
-      - reasoning: A detailed explanation in Traditional Chinese (Taiwan). 
-      
-      Security Notice: Do not display school IDs in the reasoning text.
-    `;
+    const prompt = `Student GPA: ${formData.gpa}, Major: ${formData.major}. Select ${schoolCount} schools from database. Categorize into Dream, Match, Safety.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
@@ -222,10 +245,7 @@ export const analyzeSchoolPlacement = async (
       }
     });
 
-    const text = response.text;
-    if (!text) throw new Error("Empty analysis response");
-
-    const analysis = JSON.parse(text) as AnalysisResponse;
+    const analysis = JSON.parse(cleanJSON(response.text)) as AnalysisResponse;
     const findSchool = (id: string) => schools.find(s => s.id === id);
     
     return {
@@ -234,7 +254,6 @@ export const analyzeSchoolPlacement = async (
       safety: (analysis.safetyIds || []).map(id => findSchool(id)).filter((s): s is School => !!s),
       reasoning: analysis.reasoning
     };
-
   } catch (error) {
     console.error("Gemini Analysis Error:", error);
     throw error;

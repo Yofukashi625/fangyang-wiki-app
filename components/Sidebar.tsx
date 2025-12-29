@@ -1,6 +1,7 @@
+
 import React from 'react';
 import { View } from '../types';
-import { LayoutDashboard, BookOpen, School, MessageSquareText, Settings, Flag, Bell, Wand2 } from 'lucide-react';
+import { LayoutDashboard, BookOpen, School, MessageSquareText, Settings, Flag, Bell, Wand2, Calculator } from 'lucide-react';
 
 interface SidebarProps {
   currentView: View;
@@ -14,6 +15,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView }) => {
     { id: View.SCHOOLS, label: '合作院校資料庫', icon: School },
     { id: View.WIKI, label: '員工知識庫 & SOP', icon: BookOpen },
     { id: View.ONBOARDING, label: '新人培訓', icon: Flag },
+    { id: View.TRANSCRIPT_CONVERTER, label: '成績單換算器', icon: Calculator },
     { id: View.RECOMMENDATION_GENERATOR, label: '選校推薦產生器', icon: Wand2 },
     { id: View.AI_CHAT, label: 'AI 智能助教', icon: MessageSquareText },
   ];
